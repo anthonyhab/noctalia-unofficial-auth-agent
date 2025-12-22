@@ -11,13 +11,13 @@
   date = mkDate (self.lastModifiedDate or "19700101");
   version = lib.removeSuffix "\n" (builtins.readFile ../VERSION);
 in {
-  default = self.overlays.hyprpolkitagent;
+  default = self.overlays."noctalia-polkit";
 
-  hyprpolkitagent = lib.composeManyExtensions [
+  "noctalia-polkit" = lib.composeManyExtensions [
     inputs.hyprutils.overlays.default
     inputs.hyprland-qt-support.overlays.default
     (final: prev: {
-      hyprpolkitagent = final.callPackage ./. {
+      "noctalia-polkit" = final.callPackage ./. {
         stdenv = final.gcc15Stdenv;
         version = "${version}+date=${date}_${self.shortRev or "dirty"}";
       };

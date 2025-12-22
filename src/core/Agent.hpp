@@ -1,11 +1,13 @@
 #pragma once
 
 #include <QCoreApplication>
+#include <QJsonDocument>
 #include <QJsonObject>
 #include <QLocalServer>
 #include <QLocalSocket>
 #include <QQueue>
 #include <QString>
+#include <QGuiApplication>
 
 #include "PolkitListener.hpp"
 #include <polkitqt1-subject.h>
@@ -41,10 +43,10 @@ class CAgent {
     QQueue<QJsonObject>               eventQueue;
     QString                           ipcSocketPath;
 
-    void setupIpcServer();
-    void handleSocket(QLocalSocket* socket, const QByteArray& data);
-    void enqueueEvent(const QJsonObject& event);
-    QJsonObject buildRequestEvent() const;
+    void                              setupIpcServer();
+    void                              handleSocket(QLocalSocket* socket, const QByteArray& data);
+    void                              enqueueEvent(const QJsonObject& event);
+    QJsonObject                       buildRequestEvent() const;
 
     friend class CPolkitListener;
 };

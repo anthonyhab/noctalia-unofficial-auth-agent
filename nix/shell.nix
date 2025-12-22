@@ -1,9 +1,9 @@
 {
   pkgs ? import <nixpkgs> {},
-  hyprpolkitagent ? pkgs.callPackage ./default.nix {},
+  noctaliaPolkit ? pkgs.callPackage ./default.nix {},
   ...
 }: pkgs.mkShell {
-  inputsFrom = [ hyprpolkitagent ];
+  inputsFrom = [ noctaliaPolkit ];
   nativeBuildInputs = [ pkgs.clang-tools ];
 
   shellHook = let

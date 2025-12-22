@@ -37,14 +37,14 @@
     overlays = import ./nix/overlays.nix {inherit inputs self lib;};
 
     packages = eachSystem (system: {
-      default = self.packages.${system}.hyprpolkitagent;
-      inherit (pkgsFor.${system}) hyprpolkitagent;
+      default = self.packages.${system}."noctalia-polkit";
+      inherit (pkgsFor.${system}) "noctalia-polkit";
     });
 
     devShells = eachSystem (system: {
       default = import ./nix/shell.nix {
         pkgs = pkgsFor.${system};
-        inherit (pkgsFor.${system}) hyprpolkitagent;
+        noctaliaPolkit = pkgsFor.${system}."noctalia-polkit";
       };
     });
   };

@@ -23,10 +23,8 @@ bool CAgent::start(QCoreApplication& app, const QString& socketPath) {
 
     listener.registerListener(*sessionSubject, "/org/hyprland/PolicyKit1/AuthenticationAgent");
 
-    app.setApplicationName("Hyprland Polkit Agent");
-
-    ipcSocketPath = socketPath;
-    setupIpcServer();
+    app.setApplicationName("Noctalia Polkit Agent");
+    QGuiApplication::setQuitOnLastWindowClosed(false);
 
     app.exec();
 
@@ -59,17 +57,17 @@ void CAgent::enqueueEvent(const QJsonObject& event) {
 
 QJsonObject CAgent::buildRequestEvent() const {
     QJsonObject event;
-    event["type"] = "request";
-    event["id"] = listener.session.cookie;
+    event["type"]     = "request";
+    event["id"]       = listener.session.cookie;
     event["actionId"] = listener.session.actionId;
-    event["message"] = listener.session.message;
-    event["icon"] = listener.session.iconName;
-    event["user"] = listener.session.selectedUser.toString();
-    event["prompt"] = listener.session.prompt;
-    event["echo"] = listener.session.echoOn;
+    event["message"]  = listener.session.message;
+    event["icon"]     = listener.session.iconName;
+    event["user"]     = listener.session.selectedUser.toString();
+    event["prompt"]   = listener.session.prompt;
+    event["echo"]     = listener.session.echoOn;
 
     QJsonObject details;
-    const auto keys = listener.session.details.keys();
+    const auto  keys = listener.session.details.keys();
     for (const auto& key : keys) {
         details.insert(key, listener.session.details.lookup(key));
     }
@@ -87,16 +85,16 @@ void CAgent::enqueueRequest() {
 
 void CAgent::enqueueError(const QString& error) {
     QJsonObject event;
-    event["type"] = "update";
-    event["id"] = listener.session.cookie;
+    event["type"]  = "update";
+    event["id"]    = listener.session.cookie;
     event["error"] = error;
     enqueueEvent(event);
 }
 
 void CAgent::enqueueComplete(const QString& result) {
     QJsonObject event;
-    event["type"] = "complete";
-    event["id"] = listener.session.cookie;
+    event["type"]   = "complete";
+    event["id"]     = listener.session.cookie;
     event["result"] = result;
     enqueueEvent(event);
 }
@@ -118,7 +116,7 @@ bool CAgent::handleCancel(const QString& cookie) {
 void CAgent::setupIpcServer() {
     if (ipcSocketPath.isEmpty()) {
         const auto runtimeDir = QStandardPaths::writableLocation(QStandardPaths::RuntimeLocation);
-        ipcSocketPath = runtimeDir + "/noctalia-polkit-agent.sock";
+        ipcSocketPath         = runtimeDir + "/noctalia-polkit-agent.sock";
     }
 
     QLocalServer::removeServer(ipcSocketPath);
@@ -141,9 +139,9 @@ void CAgent::setupIpcServer() {
 }
 
 void CAgent::handleSocket(QLocalSocket* socket, const QByteArray& data) {
-    const QList<QByteArray> lines = data.split('\n');
-    const QString command = QString::fromUtf8(lines.value(0)).trimmed();
-    const QString payload = QString::fromUtf8(lines.value(1)).trimmed();
+    const QList<QByteArray> lines   = data.split('\n');
+    const QString           command = QString::fromUtf8(lines.value(0)).trimmed();
+    const QString           payload = QString::fromUtf8(lines.value(1)).trimmed();
 
     if (command == "PING") {
         socket->write("PONG\n");
@@ -157,7 +155,7 @@ void CAgent::handleSocket(QLocalSocket* socket, const QByteArray& data) {
             socket->write("\n");
         } else {
             const auto event = eventQueue.dequeue();
-            const auto json = QJsonDocument(event).toJson(QJsonDocument::Compact);
+            const auto json  = QJsonDocument(event).toJson(QJsonDocument::Compact);
             socket->write(json + "\n");
         }
         socket->flush();
@@ -167,7 +165,7 @@ void CAgent::handleSocket(QLocalSocket* socket, const QByteArray& data) {
 
     if (command.startsWith("RESPOND ")) {
         const QString cookie = command.mid(QString("RESPOND ").length()).trimmed();
-        const bool ok = handleRespond(cookie, payload);
+        const bool    ok     = handleRespond(cookie, payload);
         socket->write(ok ? "OK\n" : "ERROR\n");
         socket->flush();
         socket->disconnectFromServer();
@@ -176,7 +174,7 @@ void CAgent::handleSocket(QLocalSocket* socket, const QByteArray& data) {
 
     if (command.startsWith("CANCEL ")) {
         const QString cookie = command.mid(QString("CANCEL ").length()).trimmed();
-        const bool ok = handleCancel(cookie);
+        const bool    ok     = handleCancel(cookie);
         socket->write(ok ? "OK\n" : "ERROR\n");
         socket->flush();
         socket->disconnectFromServer();

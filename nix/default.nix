@@ -14,7 +14,7 @@
   inherit (lib.strings) hasSuffix;
 in
   stdenv.mkDerivation {
-    pname = "hyprpolkitagent";
+    pname = "noctalia-polkit";
     inherit version;
 
     src = cleanSourceWith {
@@ -43,10 +43,10 @@ in
 
     meta = {
       description = "A polkit authentication agent written in QT/QML";
-      homepage = "https://github.com/hyprwm/hyprpolkitagent";
+      homepage = "https://github.com/anthonyhab/noctalia-polkit";
       license = lib.licenses.bsd3;
       maintainers = [lib.maintainers.fufexan];
-      mainProgram = "hyprpolkitagent";
+      mainProgram = "noctalia-polkit";
       platforms = lib.platforms.linux;
     };
   }
