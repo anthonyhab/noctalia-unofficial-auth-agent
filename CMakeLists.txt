@@ -28,22 +28,10 @@ qt_add_executable(noctaliapolkitagent
     src/core/Agent.hpp
     src/core/PolkitListener.hpp
     src/core/PolkitListener.cpp
-    src/QMLIntegration.cpp
-    src/QMLIntegration.hpp
-)
-
-qt_add_qml_module(noctaliapolkitagent
-    URI hpa
-    VERSION 1.0
-    QML_FILES
-        qml/main.qml
-    SOURCES
-        src/QMLIntegration.cpp
-        src/QMLIntegration.hpp
 )
 
 target_link_libraries(noctaliapolkitagent
-    PRIVATE Qt6::Widgets Qt6::Quick Qt6::Gui Qt6::QuickControls2 PkgConfig::deps
+    PRIVATE Qt6::Core Qt6::Network PkgConfig::deps
 )
 
 include(GNUInstallDirs)

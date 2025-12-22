@@ -7,7 +7,6 @@
 #include <QLocalSocket>
 #include <QQueue>
 #include <QString>
-#include <QGuiApplication>
 
 #include "PolkitListener.hpp"
 #include <polkitqt1-subject.h>

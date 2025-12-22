@@ -23,8 +23,9 @@ systemctl --user enable --now noctalia-polkit.service
 ```
 
 Notes:
-- Use `/usr/local` if you want a local install; the helper path changes accordingly.
-- The helper binary installs to `libexec` under the chosen prefix (for example, `/usr/libexec/noctalia-polkit`).
+- Use `/usr/local` if you want a local install.
+- The agent binary installs to `libexec` under the chosen prefix (for example, `/usr/libexec/noctalia-polkit`).
+- The Noctalia plugin connects over IPC at `$XDG_RUNTIME_DIR/noctalia-polkit-agent.sock`.
 
 ### NixOS / Nix
 

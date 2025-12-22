@@ -24,8 +24,8 @@ bool CAgent::start(QCoreApplication& app, const QString& socketPath) {
     listener.registerListener(*sessionSubject, "/org/hyprland/PolicyKit1/AuthenticationAgent");
 
     app.setApplicationName("Noctalia Polkit Agent");
-    QGuiApplication::setQuitOnLastWindowClosed(false);
-
+    ipcSocketPath = socketPath;
+    setupIpcServer();
     app.exec();
 
     return true;
@@ -135,7 +135,14 @@ void CAgent::setupIpcServer() {
         }
     });
 
-    ipcServer->listen(ipcSocketPath);
+    if (!ipcServer->listen(ipcSocketPath)) {
+        std::print(stderr, "IPC listen failed on {}: {}\n",
+                   ipcSocketPath.toStdString(),
+                   ipcServer->errorString().toStdString());
+        return;
+    }
+
+    std::print("IPC listening on {}\n", ipcSocketPath.toStdString());
 }
 
 void CAgent::handleSocket(QLocalSocket* socket, const QByteArray& data) {
