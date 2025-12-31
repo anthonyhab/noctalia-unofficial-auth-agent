@@ -1,6 +1,7 @@
 #pragma once
 
 #include <QCoreApplication>
+#include <QHash>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QLocalServer>
@@ -35,6 +36,19 @@ class CAgent {
         bool authing = false;
     } authState;
 
+    // Keyring request tracking
+    struct KeyringRequest {
+        QString       cookie;
+        QString       title;
+        QString       message;
+        QString       description;
+        bool          passwordNew  = false;
+        bool          confirmOnly  = false;
+        QLocalSocket* replySocket  = nullptr;
+    };
+
+    QHash<QString, KeyringRequest> pendingKeyringRequests;
+
     CPolkitListener                   listener;
     SP<PolkitQt1::UnixSessionSubject> sessionSubject;
 
@@ -42,10 +56,17 @@ class CAgent {
     QQueue<QJsonObject>               eventQueue;
     QString                           ipcSocketPath;
 
-    void                              setupIpcServer();
-    void                              handleSocket(QLocalSocket* socket, const QByteArray& data);
-    void                              enqueueEvent(const QJsonObject& event);
-    QJsonObject                       buildRequestEvent() const;
+    void        setupIpcServer();
+    void        handleSocket(QLocalSocket* socket, const QByteArray& data);
+    void        enqueueEvent(const QJsonObject& event);
+    QJsonObject buildRequestEvent() const;
+    QJsonObject buildKeyringRequestEvent(const KeyringRequest& req) const;
+
+    // Keyring request handlers
+    void handleKeyringRequest(QLocalSocket* socket, const QByteArray& payload);
+    void handleKeyringConfirm(QLocalSocket* socket, const QByteArray& payload);
+    void respondToKeyringRequest(const QString& cookie, const QString& password);
+    void cancelKeyringRequest(const QString& cookie);
 
     friend class CPolkitListener;
 };
