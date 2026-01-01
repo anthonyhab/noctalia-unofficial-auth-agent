@@ -10,7 +10,13 @@ Requires polkit-auth [plugin](https://github.com/anthonyhab/noctalia-plugins/tre
 
 ## Install
 
-### Arch / Fedora / Debian/Ubuntu
+### Arch Linux (AUR)
+
+```bash
+yay -S noctalia-polkit-git
+```
+
+### Manual Build (Arch / Fedora / Debian/Ubuntu)
 
 Dependencies (names vary by distro): Qt6 base, polkit-qt6, polkit, gcr-4, json-glib, cmake, pkg-config.
 
