@@ -13,14 +13,10 @@
 in {
   default = self.overlays."noctalia-polkit";
 
-  "noctalia-polkit" = lib.composeManyExtensions [
-    inputs.hyprutils.overlays.default
-    inputs.hyprland-qt-support.overlays.default
-    (final: prev: {
-      "noctalia-polkit" = final.callPackage ./. {
-        stdenv = final.gcc15Stdenv;
-        version = "${version}+date=${date}_${self.shortRev or "dirty"}";
-      };
-    })
-  ];
+  "noctalia-polkit" = final: prev: {
+    "noctalia-polkit" = final.callPackage ./. {
+      stdenv = final.gcc15Stdenv;
+      version = "${version}+date=${date}_${self.shortRev or "dirty"}";
+    };
+  };
 }

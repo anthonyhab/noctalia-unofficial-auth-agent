@@ -1,3 +1,4 @@
 [D-BUS Service]
 Name=org.gnome.keyring.SystemPrompter
 Exec=@LIBEXECDIR@/noctalia-keyring-prompter
+SystemdService=noctalia-polkit.service
