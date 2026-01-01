@@ -17,7 +17,6 @@ pkg_check_modules(
   deps
   REQUIRED
   IMPORTED_TARGET
-  hyprutils
   polkit-agent-1
   polkit-qt6-1)
 

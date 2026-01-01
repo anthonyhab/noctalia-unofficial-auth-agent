@@ -40,7 +40,7 @@ bool sendCommand(const QString& socketPath, const QString& command, const QStrin
 int main(int argc, char* argv[]) {
     QCoreApplication app(argc, argv);
     QCommandLineParser parser;
-    parser.setApplicationDescription("Noctalia Polkit Agent (hyprpolkitagent fork)");
+    parser.setApplicationDescription("Noctalia Polkit Agent");
     parser.addHelpOption();
 
     QCommandLineOption optDaemon(QStringList{"daemon"}, "Run the polkit agent daemon.");

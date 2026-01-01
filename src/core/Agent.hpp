@@ -12,10 +12,7 @@
 #include "PolkitListener.hpp"
 #include <polkitqt1-subject.h>
 
-#include <hyprutils/memory/WeakPtr.hpp>
-using namespace Hyprutils::Memory;
-#define SP CSharedPointer
-#define WP CWeakPointer
+#include <memory>
 
 class CAgent {
   public:
@@ -49,8 +46,8 @@ class CAgent {
 
     QHash<QString, KeyringRequest> pendingKeyringRequests;
 
-    CPolkitListener                   listener;
-    SP<PolkitQt1::UnixSessionSubject> sessionSubject;
+    CPolkitListener                                listener;
+    std::shared_ptr<PolkitQt1::UnixSessionSubject> sessionSubject;
 
     QLocalServer*                     ipcServer = nullptr;
     QQueue<QJsonObject>               eventQueue;

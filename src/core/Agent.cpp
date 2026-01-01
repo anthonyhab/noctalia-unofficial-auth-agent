@@ -19,9 +19,9 @@ CAgent::~CAgent() {
 }
 
 bool CAgent::start(QCoreApplication& app, const QString& socketPath) {
-    sessionSubject = makeShared<PolkitQt1::UnixSessionSubject>(getpid());
+    sessionSubject = std::make_shared<PolkitQt1::UnixSessionSubject>(getpid());
 
-    listener.registerListener(*sessionSubject, "/org/hyprland/PolicyKit1/AuthenticationAgent");
+    listener.registerListener(*sessionSubject, "/org/noctalia/PolicyKit1/AuthenticationAgent");
 
     app.setApplicationName("Noctalia Polkit Agent");
     ipcSocketPath = socketPath;
