@@ -176,28 +176,19 @@ generate_cookie (NoctaliaPrompt *self)
                             self->cookie_counter);
 }
 
-/* Async password prompt implementation */
+/* Thread function for async password prompt */
 static void
-noctalia_prompt_password_async (GcrPrompt          *prompt,
-                                GCancellable       *cancellable,
-                                GAsyncReadyCallback callback,
-                                gpointer            user_data)
+password_request_thread (GTask        *task,
+                         gpointer      source_object,
+                         gpointer      task_data,
+                         GCancellable *cancellable)
 {
-    NoctaliaPrompt *self = NOCTALIA_PROMPT (prompt);
-    GTask *task;
+    NoctaliaPrompt *self = NOCTALIA_PROMPT (source_object);
     gchar *password = NULL;
     gboolean success;
 
-    task = g_task_new (prompt, cancellable, callback, user_data);
-
-    /* Generate a unique cookie for this request */
-    g_free (self->request_cookie);
-    self->request_cookie = generate_cookie (self);
-
-    g_debug ("Sending keyring password request: cookie=%s title=%s message=%s",
-             self->request_cookie,
-             self->title ? self->title : "(null)",
-             self->message ? self->message : "(null)");
+    g_message ("Thread: Sending keyring password request: cookie=%s",
+               self->request_cookie);
 
     /* Send request to noctalia-polkit - this blocks until user responds */
     success = noctalia_ipc_send_keyring_request (
@@ -209,19 +200,48 @@ noctalia_prompt_password_async (GcrPrompt          *prompt,
         &password
     );
 
+    if (g_task_return_error_if_cancelled (task)) {
+        g_free (password);
+        return;
+    }
+
     if (success && password != NULL) {
         g_free (self->password);
         self->password = password;
         self->cancelled = FALSE;
-        g_debug ("Keyring request successful");
+        g_message ("Thread: Keyring request successful");
         g_task_return_pointer (task, (gpointer)self->password, NULL);
     } else {
         self->cancelled = TRUE;
         g_free (password);
-        g_debug ("Keyring request cancelled or failed");
+        g_message ("Thread: Keyring request cancelled or failed");
         g_task_return_pointer (task, NULL, NULL);
     }
+}
 
+/* Async password prompt implementation */
+static void
+noctalia_prompt_password_async (GcrPrompt          *prompt,
+                                GCancellable       *cancellable,
+                                GAsyncReadyCallback callback,
+                                gpointer            user_data)
+{
+    NoctaliaPrompt *self = NOCTALIA_PROMPT (prompt);
+    GTask *task;
+
+    task = g_task_new (prompt, cancellable, callback, user_data);
+
+    /* Generate a unique cookie for this request */
+    g_free (self->request_cookie);
+    self->request_cookie = generate_cookie (self);
+
+    g_message ("Async: Starting keyring password request: cookie=%s title=%s message=%s",
+               self->request_cookie,
+               self->title ? self->title : "(null)",
+               self->message ? self->message : "(null)");
+
+    /* Run the blocking IPC in a thread to not block the main loop */
+    g_task_run_in_thread (task, password_request_thread);
     g_object_unref (task);
 }
 
@@ -235,26 +255,18 @@ noctalia_prompt_password_finish (GcrPrompt    *prompt,
     return g_task_propagate_pointer (G_TASK (result), error);
 }
 
-/* Async confirm prompt implementation */
+/* Thread function for async confirm prompt */
 static void
-noctalia_prompt_confirm_async (GcrPrompt          *prompt,
-                               GCancellable       *cancellable,
-                               GAsyncReadyCallback callback,
-                               gpointer            user_data)
+confirm_request_thread (GTask        *task,
+                        gpointer      source_object,
+                        gpointer      task_data,
+                        GCancellable *cancellable)
 {
-    NoctaliaPrompt *self = NOCTALIA_PROMPT (prompt);
-    GTask *task;
+    NoctaliaPrompt *self = NOCTALIA_PROMPT (source_object);
     gboolean confirmed;
 
-    task = g_task_new (prompt, cancellable, callback, user_data);
-
-    /* Generate cookie */
-    g_free (self->request_cookie);
-    self->request_cookie = generate_cookie (self);
-
-    g_debug ("Sending keyring confirm request: cookie=%s title=%s",
-             self->request_cookie,
-             self->title ? self->title : "(null)");
+    g_message ("Thread: Sending keyring confirm request: cookie=%s",
+               self->request_cookie);
 
     /* Send confirm request to noctalia-polkit */
     confirmed = noctalia_ipc_send_confirm_request (
@@ -264,7 +276,34 @@ noctalia_prompt_confirm_async (GcrPrompt          *prompt,
         self->description
     );
 
+    if (g_task_return_error_if_cancelled (task))
+        return;
+
     g_task_return_int (task, confirmed ? GCR_PROMPT_REPLY_CONTINUE : GCR_PROMPT_REPLY_CANCEL);
+}
+
+/* Async confirm prompt implementation */
+static void
+noctalia_prompt_confirm_async (GcrPrompt          *prompt,
+                               GCancellable       *cancellable,
+                               GAsyncReadyCallback callback,
+                               gpointer            user_data)
+{
+    NoctaliaPrompt *self = NOCTALIA_PROMPT (prompt);
+    GTask *task;
+
+    task = g_task_new (prompt, cancellable, callback, user_data);
+
+    /* Generate cookie */
+    g_free (self->request_cookie);
+    self->request_cookie = generate_cookie (self);
+
+    g_message ("Async: Starting keyring confirm request: cookie=%s title=%s",
+               self->request_cookie,
+               self->title ? self->title : "(null)");
+
+    /* Run the blocking IPC in a thread to not block the main loop */
+    g_task_run_in_thread (task, confirm_request_thread);
     g_object_unref (task);
 }
 

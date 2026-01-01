@@ -350,6 +350,13 @@ void CAgent::respondToKeyringRequest(const QString& cookie, const QString& passw
         req.replySocket->flush();
         req.replySocket->disconnectFromServer();
     }
+
+    // Notify UI that the request is complete
+    QJsonObject event;
+    event["type"]   = "complete";
+    event["id"]     = cookie;
+    event["result"] = "success";
+    enqueueEvent(event);
 }
 
 void CAgent::cancelKeyringRequest(const QString& cookie) {
@@ -367,4 +374,11 @@ void CAgent::cancelKeyringRequest(const QString& cookie) {
         req.replySocket->flush();
         req.replySocket->disconnectFromServer();
     }
+
+    // Notify UI that the request is complete (cancelled)
+    QJsonObject event;
+    event["type"]   = "complete";
+    event["id"]     = cookie;
+    event["result"] = "cancelled";
+    enqueueEvent(event);
 }
