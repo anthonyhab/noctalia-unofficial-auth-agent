@@ -1,5 +1,5 @@
 #include "RequestContext.hpp"
-#include <print>
+#include "RequestContext.hpp"
 #include <QFile>
 #include <QFileInfo>
 #include <QTextStream>
@@ -9,6 +9,7 @@
 #include <QSettings>
 #include <QProcess>
 #include <QDebug>
+#include <iostream>
 
 QJsonObject ProcInfo::toJson() const {
     QJsonObject obj;
@@ -18,6 +19,8 @@ QJsonObject ProcInfo::toJson() const {
         obj["ppid"] = ppid;
     if (uid >= 0)
         obj["uid"] = uid;
+    if (!name.isEmpty())
+        obj["name"] = name;
     if (!exe.isEmpty())
         obj["exe"] = exe;
     if (!cmdline.isEmpty())
@@ -40,14 +43,20 @@ QJsonObject ActorInfo::toJson() const {
 }
 
 std::optional<qint64> RequestContextHelper::extractSubjectPid(const PolkitQt1::Details& details) {
-    QString pidStr = details.lookup("polkit.subject-pid");
-    if (pidStr.isEmpty())
-        pidStr = details.lookup("polkit.caller-pid");
+    bool ok = false;
+    qint64 pid = details.lookup("polkit.subject-pid").toLongLong(&ok);
+    if (ok && pid > 0) return pid;
+    
+    pid = details.lookup("polkit.caller-pid").toLongLong(&ok);
+    if (ok && pid > 0) return pid;
 
-    bool   ok  = false;
-    qint64 pid = pidStr.toLongLong(&ok);
-    if (ok && pid > 0)
-        return pid;
+    return std::nullopt;
+}
+
+std::optional<qint64> RequestContextHelper::extractCallerPid(const PolkitQt1::Details& details) {
+    bool ok = false;
+    qint64 pid = details.lookup("polkit.caller-pid").toLongLong(&ok);
+    if (ok && pid > 0) return pid;
     return std::nullopt;
 }
 
@@ -55,39 +64,43 @@ std::optional<ProcInfo> RequestContextHelper::readProc(qint64 pid) {
     ProcInfo info;
     info.pid = pid;
 
-    // Exe
-    info.exe = QFileInfo(QString("/proc/%1/exe").arg(pid)).symLinkTarget();
-    if (info.exe.isEmpty())
+    // 1. Read Status first (world-readable, metadata hero)
+    QFile fStat(QString("/proc/%1/status").arg(pid));
+    if (fStat.open(QIODevice::ReadOnly)) {
+        QByteArray data = fStat.readAll();
+        fStat.close();
+        if (data.isEmpty()) {
+            qDebug() << "readProc: /proc/" << pid << "/status is EMPTY";
+        }
+        QStringList lines = QString::fromUtf8(data).split('\n');
+        for (const auto& line : lines) {
+            if (line.startsWith("Name:")) {
+                info.name = line.section(':', 1).trimmed();
+            } else if (line.startsWith("PPid:")) {
+                info.ppid = line.section(':', 1).trimmed().toLongLong();
+            } else if (line.startsWith("Uid:")) {
+                info.uid = line.section(':', 1).simplified().split(' ').first().toLongLong();
+            }
+        }
+    } else {
+        qDebug() << "readProc: Failed to open /proc/" << pid << "/status:" << fStat.errorString();
         return std::nullopt;
+    }
 
-    // Cmdline
+    // 2. Try to read Exe (May fail if root/setuid, but that's okay now)
+    info.exe = QFileInfo(QString("/proc/%1/exe").arg(pid)).symLinkTarget();
+
+    // 3. Cmdline
     QFile fCmd(QString("/proc/%1/cmdline").arg(pid));
     if (fCmd.open(QIODevice::ReadOnly)) {
         QByteArray data = fCmd.readAll();
         fCmd.close();
-        // NUL-separated to space-separated
         QList<QByteArray> args = data.split('\0');
         QStringList       cleanArgs;
         for (const auto& a : args)
             if (!a.isEmpty())
                 cleanArgs << QString::fromUtf8(a);
         info.cmdline = cleanArgs.join(" ");
-    }
-
-    // Status (PPid, Uid)
-    QFile fStat(QString("/proc/%1/status").arg(pid));
-    if (fStat.open(QIODevice::ReadOnly)) {
-        QTextStream ts(&fStat);
-        while (!ts.atEnd()) {
-            QString line = ts.readLine();
-            if (line.startsWith("PPid:")) {
-                info.ppid = line.section(':', 1).trimmed().toLongLong();
-            } else if (line.startsWith("Uid:")) {
-                // Uid: 1000 1000 1000 1000
-                info.uid = line.section(':', 1).trimmed().section('\t', 0, 0).toLongLong();
-            }
-        }
-        fStat.close();
     }
 
     return info;
@@ -132,6 +145,9 @@ void                      RequestContextHelper::ensureDesktopIndex() {
 
 DesktopInfo RequestContextHelper::findDesktopForExe(const QString& exePath) {
     ensureDesktopIndex();
+    if (exePath.isEmpty())
+        return {};
+
     QString base = QFileInfo(exePath).fileName();
 
     // 1. Exact match <base>.desktop
@@ -158,6 +174,12 @@ DesktopInfo RequestContextHelper::findDesktopForExe(const QString& exePath) {
             return d;
     }
 
+    // 5. Match by Name (case-insensitive)
+    for (const auto& d : g_desktopIndex) {
+        if (d.name.compare(base, Qt::CaseInsensitive) == 0)
+            return d;
+    }
+
     return {};
 }
 
@@ -165,7 +187,7 @@ ActorInfo RequestContextHelper::resolveRequestorFromSubject(const ProcInfo& subj
     ActorInfo actor;
     actor.proc = subject;
 
-    std::print("Resolving requestor from PID {} (uid={}, exe={})\n", subject.pid, subject.uid, subject.exe.toStdString());
+    qDebug() << "Resolving requestor from PID" << subject.pid << "(uid=" << subject.uid << ", exe=" << subject.exe << ")";
 
     qint64 currPid = subject.pid;
     int    hops    = 0;
@@ -173,31 +195,44 @@ ActorInfo RequestContextHelper::resolveRequestorFromSubject(const ProcInfo& subj
     while (currPid > 1 && hops < 16) {
         auto info = readProc(currPid);
         if (!info) {
-            std::print("Requestor resolution: failed to read /proc for pid {}\n", currPid);
+            qDebug() << "Requestor resolution: failed to read /proc for pid" << currPid;
             break;
         }
 
-        std::print("Requestor resolution: pid {} (ppid={}, uid={}, exe={})\n", info->pid, info->ppid, info->uid, info->exe.toStdString());
+        qDebug() << "Requestor resolution: pid" << info->pid << "(name=" << info->name << ", ppid=" << info->ppid << ", uid=" << info->uid << ", exe=" << info->exe << ")";
 
-        // Skip processes not owned by the user (agent) to avoid "systemd" or "root" being the requestor
-        if (info->uid != agentUid && agentUid != 0) {
-            // If we are root agent (unlikely here but still), we might not want to skip.
-            // But usually this agent runs as user.
-            std::print("Requestor resolution: stopping at pid {} (uid mismatch)\n", info->pid);
+        bool isBridge = (info->name == "pkexec" || info->name == "sudo" || info->name == "doas");
+
+        // Skip processes not owned by the user (agent) unless it's a known bridge like pkexec
+        if (info->uid != agentUid && agentUid != 0 && !isBridge) {
+            qDebug() << "Requestor resolution: stopping at pid" << info->pid << "(uid mismatch)";
             break;
         }
 
-        DesktopInfo d = findDesktopForExe(info->exe);
+        // If this is a user process (not root/bridge), keep it as a fallback candidate
+        if (!isBridge && info->uid == agentUid) {
+            actor.proc = *info;
+        }
+
+        DesktopInfo d;
+        if (!info->exe.isEmpty()) {
+            d = findDesktopForExe(info->exe);
+        }
+        
+        if (!d.isValid() && !info->name.isEmpty()) {
+            d = findDesktopForExe(info->name);
+        }
+
         if (d.isValid()) {
             actor.proc       = *info;
             actor.desktop    = d;
             actor.confidence = "desktop";
-            std::print("Requestor resolution: matched desktop entry {} (icon={})\n", d.desktopId.toStdString(), d.iconName.toStdString());
+            qDebug() << "Requestor resolution: matched desktop entry" << d.desktopId << "(icon=" << d.iconName << ", name=" << d.name << ")";
             break;
         }
 
         if (info->ppid <= 1 || info->ppid == currPid) {
-            std::print("Requestor resolution: stopping at pid {} (ppid={})\n", info->pid, info->ppid);
+            qDebug() << "Requestor resolution: stopping at pid" << info->pid << "(ppid=" << info->ppid << ")";
             break;
         }
         currPid = info->ppid;
@@ -205,7 +240,7 @@ ActorInfo RequestContextHelper::resolveRequestorFromSubject(const ProcInfo& subj
     }
 
     if (!actor.desktop.isValid()) {
-        actor.confidence = actor.proc.exe.isEmpty() ? "unknown" : "exe-only";
+        actor.confidence = actor.proc.exe.isEmpty() ? (actor.proc.name.isEmpty() ? "unknown" : "name-only") : "exe-only";
     }
 
     // Fill display names
@@ -216,6 +251,11 @@ ActorInfo RequestContextHelper::resolveRequestorFromSubject(const ProcInfo& subj
         actor.displayName = QFileInfo(actor.proc.exe).fileName();
         if (actor.iconName.isEmpty()) {
             actor.iconName = QFileInfo(actor.proc.exe).baseName().toLower();
+        }
+    } else if (!actor.proc.name.isEmpty()) {
+        actor.displayName = actor.proc.name;
+        if (actor.iconName.isEmpty()) {
+            actor.iconName = actor.proc.name.toLower();
         }
     } else {
         actor.displayName = "Unknown";
@@ -247,6 +287,7 @@ QJsonObject RequestContextHelper::classifyRequest(const QString& source, const Q
 
     if (source == "polkit") {
         kind     = "polkit";
+        icon     = "security-high";
         colorize = true; // Polkit requests usually look good colorized
     } else if (source == "keyring") {
         if (title.contains("gpg", Qt::CaseInsensitive) || description.contains("OpenPGP", Qt::CaseInsensitive)) {

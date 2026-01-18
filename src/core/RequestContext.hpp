@@ -9,6 +9,7 @@ struct ProcInfo {
     qint64      pid  = 0;
     qint64      ppid = 0;
     qint64      uid  = 0;
+    QString     name;
     QString     exe;
     QString     cmdline;
 
@@ -42,6 +43,7 @@ struct ActorInfo {
 class RequestContextHelper {
   public:
     static std::optional<qint64>   extractSubjectPid(const PolkitQt1::Details& details);
+    static std::optional<qint64>   extractCallerPid(const PolkitQt1::Details& details);
     static std::optional<ProcInfo> readProc(qint64 pid);
     static DesktopInfo             findDesktopForExe(const QString& exePath);
     static ActorInfo               resolveRequestorFromSubject(const ProcInfo& subject, qint64 agentUid);

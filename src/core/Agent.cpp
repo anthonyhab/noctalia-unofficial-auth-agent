@@ -120,17 +120,36 @@ QJsonObject CAgent::buildRequestEvent(const QString& cookie) const {
     // Rich context
     ActorInfo requestor;
     auto      pid = RequestContextHelper::extractSubjectPid(session.details);
+    if (!pid) {
+        // Fallback to caller-pid if subject-pid not found or invalid
+        pid = RequestContextHelper::extractCallerPid(session.details);
+    }
+
     if (pid) {
+        std::print("Subject PID: {}\n", *pid);
         auto subject = RequestContextHelper::readProc(*pid);
+        if (!subject) {
+            std::print("Failed to read proc for subject PID {}, trying caller PID...\n", *pid);
+            auto cpid = RequestContextHelper::extractCallerPid(session.details);
+            if (cpid && *cpid != *pid) {
+                subject = RequestContextHelper::readProc(*cpid);
+                if (subject) {
+                    std::print("Resolved from caller PID: {}\n", *cpid);
+                }
+            }
+        }
+
         if (subject) {
             event["subject"]   = subject->toJson();
             requestor          = RequestContextHelper::resolveRequestorFromSubject(*subject, getuid());
             event["requestor"] = requestor.toJson();
 
-            std::print("Resolved requestor: {} (confidence: {})\n", requestor.displayName.toStdString(), requestor.confidence.toStdString());
+            std::print("Resolved requestor: {} (confidence: {}, icon: {})\n", requestor.displayName.toStdString(), requestor.confidence.toStdString(), requestor.iconName.toStdString());
+        } else {
+            std::print("Failed to resolve any process info for request\n");
         }
     } else {
-        std::print("No PID found in polkit details for requestor resolution\n");
+        std::print("No valid PID found in polkit details\n");
     }
 
     if (!requestor.iconName.isEmpty()) {
@@ -149,7 +168,9 @@ QJsonObject CAgent::buildRequestEvent(const QString& cookie) const {
         const auto hintIcon = hint.value("iconName").toString();
         if (!hintIcon.isEmpty()) {
             event["icon"] = hintIcon;
-            std::print("Fallback to hint icon: {}\n", hintIcon.toStdString());
+        } else {
+            // Default icon for polkit requests if nothing else found
+            event["icon"] = "security-high";
         }
     }
 
@@ -170,6 +191,8 @@ QJsonObject CAgent::buildKeyringRequestEvent(const KeyringRequest& req) const {
 
     if (!req.description.isEmpty())
         event["description"] = req.description;
+
+    event["hint"] = RequestContextHelper::classifyRequest("keyring", req.title, req.description, ActorInfo{});
 
     return event;
 }
