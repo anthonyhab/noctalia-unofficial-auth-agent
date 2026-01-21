@@ -59,6 +59,7 @@ qt_add_executable(noctalia-auth
     src/core/PolkitListener.cpp
     src/core/RequestContext.hpp
     src/core/RequestContext.cpp
+    src/core/ipc/IpcServer.cpp
 
     # Mode handlers
     src/modes/daemon.cpp
