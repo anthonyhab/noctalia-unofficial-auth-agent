@@ -1,516 +1,318 @@
-#define POLKIT_AGENT_I_KNOW_API_IS_SUBJECT_TO_CHANGE 1
+#include "Agent.hpp"
+#include "../common/Constants.hpp"
+#include "RequestContext.hpp"
 
-#include <print>
-#include <cstddef>
+#include <QCoreApplication>
 #include <QDBusConnection>
-
-namespace {
-    void secureZero(void* ptr, std::size_t len) {
-        volatile unsigned char* p = static_cast<volatile unsigned char*>(ptr);
-        while (len--)
-            *p++ = 0;
-    }
-} // namespace
-
 #include <QDBusInterface>
+#include <QDBusMetaType>
 #include <QDBusReply>
+#include <QFile>
 #include <QJsonDocument>
+#include <QJsonObject>
+#include <QJsonArray>
 #include <QStandardPaths>
-#include <QStringList>
-#ifdef signals
-#undef signals
-#endif
-#include <polkitagent/polkitagent.h>
+#include <QUuid>
+
+#include <memory>
+#include <pwd.h>
 #include <sys/socket.h>
 #include <unistd.h>
 
-#include "Agent.hpp"
-#include "RequestContext.hpp"
+#include <print>
+
+using namespace noctalia;
+
+std::unique_ptr<CAgent> g_pAgent;
+
+CAgent::CAgent(QObject* parent) : QObject(parent), m_listener(new CPolkitListener(this)) {
+}
+
+CAgent::~CAgent() {}
+
+#include <PolkitQt1/Subject>
 
 bool CAgent::start(QCoreApplication& app, const QString& socketPath) {
-    sessionSubject = std::make_shared<PolkitQt1::UnixSessionSubject>(getpid());
-
-    listener.registerListener(*sessionSubject, "/org/noctalia/PolicyKit1/AuthenticationAgent");
-
-    app.setApplicationName("Noctalia Polkit Agent");
-    ipcSocketPath = socketPath;
-    setupIpcServer();
-
-    fingerprintAvailable = checkFingerprintAvailable();
-    if (fingerprintAvailable)
-        std::print("Fingerprint authentication available\n");
-
-    app.exec();
-
-    return true;
-}
-
-bool CAgent::checkFingerprintAvailable() {
-    // Check if fprintd is available and user has enrolled fingerprints
-    QDBusInterface manager("net.reactivated.Fprint", "/net/reactivated/Fprint/Manager", "net.reactivated.Fprint.Manager", QDBusConnection::systemBus());
-
-    if (!manager.isValid())
+    PolkitQt1::UnixSessionSubject subject(getpid());
+    if (!m_listener->registerListener(subject, "/org/kde/PolicyKit1/AuthenticationAgent")) {
+        std::print(stderr, "Failed to register as Polkit agent listener\n");
         return false;
-
-    // Get the default fingerprint device
-    QDBusReply<QDBusObjectPath> deviceReply = manager.call("GetDefaultDevice");
-    if (!deviceReply.isValid())
-        return false;
-
-    QString devicePath = deviceReply.value().path();
-    if (devicePath.isEmpty())
-        return false;
-
-    // Check if current user has enrolled fingerprints on this device
-    QDBusInterface device("net.reactivated.Fprint", devicePath, "net.reactivated.Fprint.Device", QDBusConnection::systemBus());
-
-    if (!device.isValid())
-        return false;
-
-    // ListEnrolledFingers returns the list of enrolled fingers for a user
-    QString                 username     = qgetenv("USER");
-    QDBusReply<QStringList> fingersReply = device.call("ListEnrolledFingers", username);
-
-    if (!fingersReply.isValid())
-        return false;
-
-    return !fingersReply.value().isEmpty();
-}
-
-void CAgent::initAuthPrompt(const QString& cookie) {
-    if (!listener.sessions.contains(cookie)) {
-        std::print(stderr, "INTERNAL ERROR: Auth prompt requested but session {} isn't in progress\n", cookie.toStdString());
-        return;
     }
 
-    std::print("Auth prompt requested for {}\n", cookie.toStdString());
-    // The actual request is emitted when the session provides a prompt.
-}
+    std::print("Polkit listener registered successfully\n");
 
-void CAgent::enqueueEvent(const QJsonObject& event) {
-    std::print("Enqueuing event: {}\n", QJsonDocument(event).toJson(QJsonDocument::Indented).toStdString());
-    eventQueue.enqueue(event);
-}
+    // Connect Polkit signals
+    connect(m_listener.data(), &CPolkitListener::completed, this, &CAgent::onPolkitCompleted);
 
-QJsonObject CAgent::buildRequestEvent(const QString& cookie) const {
-    if (!listener.sessions.contains(cookie))
-        return {};
-
-    const auto& session = *listener.sessions[cookie];
-
-    QJsonObject event;
-    event["type"]                 = "request";
-    event["source"]               = "polkit";
-    event["id"]                   = session.cookie;
-    event["actionId"]             = session.actionId;
-    event["message"]              = session.message;
-    event["icon"]                 = session.iconName;
-    event["user"]                 = session.selectedUser.toString();
-    event["prompt"]               = RequestContextHelper::normalizePrompt(session.prompt);
-    event["echo"]                 = session.echoOn;
-    event["fingerprintAvailable"] = fingerprintAvailable;
-
-    QJsonObject details;
-    const auto  keys = session.details.keys();
-    for (const auto& key : keys) {
-        details.insert(key, session.details.lookup(key));
-    }
-    event["details"] = details;
-
-    // Rich context
-    ActorInfo requestor;
-    auto      pid = RequestContextHelper::extractSubjectPid(session.details);
-    if (!pid) {
-        // Fallback to caller-pid if subject-pid not found or invalid
-        pid = RequestContextHelper::extractCallerPid(session.details);
-    }
-
-    if (pid) {
-        std::print("Subject PID: {}\n", *pid);
-        auto subject = RequestContextHelper::readProc(*pid);
-        if (!subject) {
-            std::print("Failed to read proc for subject PID {}, trying caller PID...\n", *pid);
-            auto cpid = RequestContextHelper::extractCallerPid(session.details);
-            if (cpid && *cpid != *pid) {
-                subject = RequestContextHelper::readProc(*cpid);
-                if (subject) {
-                    std::print("Resolved from caller PID: {}\n", *cpid);
-                }
-            }
-        }
-
-        if (subject) {
-            event["subject"]   = subject->toJson();
-            requestor          = RequestContextHelper::resolveRequestorFromSubject(*subject, getuid());
-            event["requestor"] = requestor.toJson();
-
-            std::print("Resolved requestor: {} (confidence: {}, icon: {})\n", requestor.displayName.toStdString(), requestor.confidence.toStdString(), requestor.iconName.toStdString());
-        } else {
-            std::print("Failed to resolve any process info for request\n");
-        }
-    } else {
-        std::print("No valid PID found in polkit details\n");
-    }
-
-    if (!requestor.iconName.isEmpty()) {
-        event["icon"] = requestor.iconName;
-        std::print("Upgrading icon to resolved requestor icon: {}\n", requestor.iconName.toStdString());
-    }
-
-    if (!session.errorText.isEmpty())
-        event["error"] = session.errorText;
-
-    // Hint
-    QJsonObject hint = RequestContextHelper::classifyRequest("polkit", event["actionId"].toString(), event["message"].toString(), requestor);
-    event["hint"]    = hint;
-
-    if (event["icon"].toString().isEmpty()) {
-        const auto hintIcon = hint.value("iconName").toString();
-        if (!hintIcon.isEmpty()) {
-            event["icon"] = hintIcon;
-        } else {
-            // Default icon for polkit requests if nothing else found
-            event["icon"] = "security-high";
-        }
-    }
-
-    return event;
-}
-
-QJsonObject CAgent::buildKeyringRequestEvent(const KeyringRequest& req) const {
-    QJsonObject event;
-    event["type"]                 = "request";
-    event["source"]               = "keyring";
-    event["id"]                   = req.cookie;
-    event["message"]              = req.title;
-    event["prompt"]               = req.message;
-    event["echo"]                 = false;
-    event["passwordNew"]          = req.passwordNew;
-    event["confirmOnly"]          = req.confirmOnly;
-    event["fingerprintAvailable"] = fingerprintAvailable;
-
-    if (!req.description.isEmpty())
-        event["description"] = req.description;
-
-    if (!req.warning.isEmpty())
-        event["warning"] = req.warning;
-
-    event["hint"] = RequestContextHelper::classifyRequest("keyring", req.title, req.description, ActorInfo{});
-
-    return event;
-}
-
-void CAgent::enqueueRequest(const QString& cookie) {
-    enqueueEvent(buildRequestEvent(cookie));
-}
-
-void CAgent::enqueueError(const QString& cookie, const QString& error) {
-    QJsonObject event;
-    event["type"]  = "update";
-    event["id"]    = cookie;
-    event["error"] = error;
-    enqueueEvent(event);
-}
-
-void CAgent::enqueueComplete(const QString& cookie, const QString& result) {
-    QJsonObject event;
-    event["type"]   = "complete";
-    event["id"]     = cookie;
-    event["result"] = result;
-    enqueueEvent(event);
-}
-
-bool CAgent::handleRespond(const QString& cookie, const QString& password) {
-    if (!listener.sessions.contains(cookie))
-        return false;
-    listener.submitPassword(cookie, password);
-    return true;
-}
-
-bool CAgent::handleCancel(const QString& cookie) {
-    if (!listener.sessions.contains(cookie))
-        return false;
-    listener.cancelPending(cookie);
-    return true;
-}
-
-void CAgent::setupIpcServer() {
-    if (ipcSocketPath.isEmpty()) {
-        const auto runtimeDir = QStandardPaths::writableLocation(QStandardPaths::RuntimeLocation);
-        ipcSocketPath         = runtimeDir + "/noctalia-polkit-agent.sock";
-    }
-
-    QLocalServer::removeServer(ipcSocketPath);
-
-    ipcServer = new QLocalServer();
-    ipcServer->setSocketOptions(QLocalServer::UserAccessOption);
-
-    QObject::connect(ipcServer, &QLocalServer::newConnection, [this]() {
-        while (ipcServer->hasPendingConnections()) {
-            auto* socket = ipcServer->nextPendingConnection();
-            QObject::connect(socket, &QLocalSocket::readyRead, [this, socket]() {
-                while (socket->canReadLine()) {
-                    QByteArray line = socket->readLine().trimmed();
-                    if (line.isEmpty())
-                        continue;
-                    handleSocketLine(socket, line);
-                }
-            });
-            QObject::connect(socket, &QLocalSocket::disconnected, [this, socket]() {
-                cleanupKeyringRequestsForSocket(socket);
-                socket->deleteLater();
-            });
-        }
+    // Connect Manager signals
+    connect(&m_pinentryManager, &noctalia::PinentryManager::deferredComplete, this, [this](const QString&, const QJsonObject& event) {
+        emitSessionEvent(event);
     });
 
-    if (!ipcServer->listen(ipcSocketPath)) {
-        std::print(stderr, "IPC listen failed on {}: {}\n", ipcSocketPath.toStdString(), ipcServer->errorString().toStdString());
-        return;
+    // Setup IPC server
+    m_ipcServer.setMessageHandler([this](QLocalSocket* socket, const QString& type, const QJsonObject& msg) { handleMessage(socket, type, msg); });
+
+    QObject::connect(&m_ipcServer, &noctalia::IpcServer::clientDisconnected, [this](QLocalSocket* socket) { onClientDisconnected(socket); });
+
+    if (!m_ipcServer.start(socketPath)) {
+        std::print(stderr, "Failed to start IPC server on {}\n", socketPath.toStdString());
+        return false;
     }
 
-    std::print("IPC listening on {}\n", ipcSocketPath.toStdString());
+    std::print("Agent started on {}\n", socketPath.toStdString());
+    return app.exec() == 0;
 }
 
-void CAgent::handleSocketLine(QLocalSocket* socket, const QByteArray& line) {
-    // Input validation: reject oversized messages
-    constexpr qsizetype MAX_MESSAGE_SIZE = 64 * 1024; // 64KB
-    if (line.size() > MAX_MESSAGE_SIZE) {
-        std::print(stderr, "Rejected oversized message: {} bytes\n", line.size());
-        sendJson(socket, QJsonObject{{"type", "error"}, {"error", "message_too_large"}});
-        socket->disconnectFromServer();
-        return;
+void CAgent::onClientDisconnected(QLocalSocket* socket) {
+    if (m_subscribers.removeOne(socket)) {
+        qDebug() << "Subscriber removed, remaining:" << m_subscribers.size();
     }
+    nextWaiters.removeAll(socket);
+    m_keyringManager.cleanupForSocket(socket);
+    m_pinentryManager.cleanupForSocket(socket);
+}
 
-    QJsonParseError parseError;
-    QJsonDocument   doc = QJsonDocument::fromJson(line, &parseError);
-
-    if (parseError.error != QJsonParseError::NoError || !doc.isObject()) {
-        std::print(stderr, "IPC JSON parse error: {}\n", parseError.errorString().toStdString());
-        sendJson(socket, QJsonObject{{"type", "error"}, {"error", "invalid_json"}});
-        return;
-    }
-
-    const QJsonObject obj  = doc.object();
-    const QString     type = obj.value("type").toString();
-
+void CAgent::handleMessage(QLocalSocket* socket, const QString& type, const QJsonObject& msg) {
     if (type == "ping") {
-        sendJson(socket, QJsonObject{{"type", "pong"}});
-        return;
-    }
-
-    if (type == "next") {
-        if (eventQueue.isEmpty()) {
-            sendJson(socket, QJsonObject{{"type", "empty"}});
-        } else {
-            const auto event = eventQueue.dequeue();
-            sendJson(socket, event);
-        }
-        return;
-    }
-
-    if (type == "keyring_request") {
-        handleKeyringRequest(socket, obj);
-        // Keep socket open for response.
-        return;
-    }
-
-    if (type == "respond") {
-        const QString cookie   = obj.value("id").toString();
-        const QString response = obj.value("response").toString();
-
-        if (cookie.isEmpty()) {
-            sendJson(socket, QJsonObject{{"type", "error"}, {"error", "missing_id"}});
-            return;
-        }
-
-        if (pendingKeyringRequests.contains(cookie)) {
-            respondToKeyringRequest(cookie, response);
-            sendJson(socket, QJsonObject{{"type", "ok"}});
-            return;
-        }
-
-        const bool ok = handleRespond(cookie, response);
-        sendJson(socket, ok ? QJsonObject{{"type", "ok"}} : QJsonObject{{"type", "error"}, {"error", "invalid_cookie"}});
-        return;
-    }
-
-    if (type == "cancel") {
-        const QString cookie = obj.value("id").toString();
-
-        if (cookie.isEmpty()) {
-            sendJson(socket, QJsonObject{{"type", "error"}, {"error", "missing_id"}});
-            return;
-        }
-
-        if (pendingKeyringRequests.contains(cookie)) {
-            cancelKeyringRequest(cookie);
-            sendJson(socket, QJsonObject{{"type", "ok"}});
-            return;
-        }
-
-        const bool ok = handleCancel(cookie);
-        sendJson(socket, ok ? QJsonObject{{"type", "ok"}} : QJsonObject{{"type", "error"}, {"error", "invalid_cookie"}});
-        return;
-    }
-
-    sendJson(socket, QJsonObject{{"type", "error"}, {"error", "unknown_command"}});
-}
-
-void CAgent::sendJson(QLocalSocket* socket, const QJsonObject& obj, bool disconnect, bool secure) {
-    if (!socket || socket->state() != QLocalSocket::ConnectedState)
-        return;
-
-    QByteArray json = QJsonDocument(obj).toJson(QJsonDocument::Compact);
-    socket->write(json);
-    socket->write("\n");
-    socket->flush();
-
-    if (secure)
-        secureZero(json.data(), json.size());
-
-    if (disconnect)
-        socket->disconnectFromServer();
-}
-
-void CAgent::handleKeyringRequest(QLocalSocket* socket, const QJsonObject& obj) {
-    KeyringRequest req;
-    req.cookie      = obj.value("cookie").toString();
-    req.title       = obj.value("title").toString();
-    req.message     = obj.value("message").toString();
-    req.description = obj.value("description").toString();
-    req.warning     = obj.value("warning").toString();
-    req.passwordNew = obj.value("password_new").toBool(false);
-    req.confirmOnly = obj.value("confirm_only").toBool(false);
-    req.replySocket = socket;
-
-    if (req.cookie.isEmpty()) {
-        std::print(stderr, "Keyring request missing cookie\n");
-        sendJson(socket, QJsonObject{{"type", "error"}, {"error", "missing_cookie"}});
-        return;
-    }
-
-    std::print("Keyring request received: cookie={} title={}\n", req.cookie.toStdString(), req.title.toStdString());
-
-    // Try to parse origin PID from title: [PID]@host
-    if (req.title.startsWith('[')) {
-        int end = req.title.indexOf(']');
-        if (end > 1) {
-            bool   ok  = false;
-            qint64 pid = req.title.mid(1, end - 1).toLongLong(&ok);
-            if (ok) {
-                req.originPid = pid;
-                std::print("Parsed origin PID from title: {}\n", pid);
-            }
-        }
-    }
-
-    pendingKeyringRequests[req.cookie] = req;
-
-    // Enqueue event for UI
-    QJsonObject event = buildKeyringRequestEvent(req);
-
-    // Try to get peer PID for keyring requestor
-    qint64 targetPid = 0;
-    if (req.originPid > 0) {
-        targetPid = req.originPid;
+        m_ipcServer.sendJson(socket, QJsonObject{
+            {"type", "pong"},
+            {"version", "2.0"},
+            {"capabilities", QJsonArray{"polkit", "keyring", "pinentry"}}
+        });
+    } else if (type == "subscribe") {
+        handleSubscribe(socket);
+    } else if (type == "next") {
+        handleNext(socket);
+    } else if (type == "keyring_request") {
+        handleKeyringRequest(socket, msg);
+    } else if (type == "pinentry_request") {
+        handlePinentryRequest(socket, msg);
+    } else if (type == "session.respond") {
+        handleRespond(socket, msg);
+    } else if (type == "session.cancel") {
+        handleCancel(socket, msg);
     } else {
-        struct ucred ucred;
-        socklen_t    len = sizeof(struct ucred);
-        if (getsockopt(socket->socketDescriptor(), SOL_SOCKET, SO_PEERCRED, &ucred, &len) != -1) {
-            targetPid = ucred.pid;
-        }
+        m_ipcServer.sendJson(socket, QJsonObject{{"type", "error"}, {"message", "Unknown type"}});
     }
-
-    if (targetPid > 0) {
-        auto subject = RequestContextHelper::readProc(targetPid);
-        if (subject) {
-            event["subject"]   = subject->toJson();
-            auto requestor     = RequestContextHelper::resolveRequestorFromSubject(*subject, getuid());
-            event["requestor"] = requestor.toJson();
-            event["hint"]      = RequestContextHelper::classifyRequest("keyring", req.title, req.description, requestor);
-        }
-    }
-
-    if (!event.contains("hint")) {
-        event["hint"] = RequestContextHelper::classifyRequest("keyring", req.title, req.description, {});
-    }
-
-    if (event.value("icon").toString().isEmpty()) {
-        const auto hintIcon = event.value("hint").toObject().value("iconName").toString();
-        if (!hintIcon.isEmpty()) {
-            event["icon"] = hintIcon;
-            std::print("Fallback to hint icon for keyring: {}\n", hintIcon.toStdString());
-        }
-    }
-
-    enqueueEvent(event);
 }
 
-void CAgent::cleanupKeyringRequestsForSocket(QLocalSocket* socket) {
-    if (!socket)
-        return;
-
-    QStringList staleCookies;
-    staleCookies.reserve(pendingKeyringRequests.size());
-    for (auto it = pendingKeyringRequests.cbegin(); it != pendingKeyringRequests.cend(); ++it) {
-        if (it->replySocket == socket)
-            staleCookies.append(it.key());
-    }
-
-    for (const auto& cookie : staleCookies)
-        cancelKeyringRequest(cookie);
-}
-
-void CAgent::respondToKeyringRequest(const QString& cookie, const QString& password) {
-    if (!pendingKeyringRequests.contains(cookie)) {
-        std::print(stderr, "Keyring respond: unknown cookie {}\n", cookie.toStdString());
+void CAgent::handleNext(QLocalSocket* socket) {
+    if (eventQueue.isEmpty()) {
+        nextWaiters.append(socket);
         return;
     }
 
-    KeyringRequest req = pendingKeyringRequests.take(cookie);
-
-    std::print("Responding to keyring request: cookie={}\n", cookie.toStdString());
-
-    if (req.replySocket && req.replySocket->isOpen()) {
-        QJsonObject response;
-        response["type"]   = "keyring_response";
-        response["id"]     = cookie;
-        response["result"] = req.confirmOnly ? "confirmed" : "ok";
-        if (!req.confirmOnly)
-            response["password"] = password;
-        sendJson(req.replySocket, response, true, !req.confirmOnly);
-    }
-
-    // Notify UI that the request is complete
-    QJsonObject event;
-    event["type"]   = "complete";
-    event["id"]     = cookie;
-    event["result"] = "success";
-    enqueueEvent(event);
+    QJsonObject nextEvent = eventQueue.takeFirst();
+    m_ipcServer.sendJson(socket, nextEvent);
 }
 
-void CAgent::cancelKeyringRequest(const QString& cookie) {
-    if (!pendingKeyringRequests.contains(cookie)) {
-        std::print(stderr, "Keyring cancel: unknown cookie {}\n", cookie.toStdString());
+void CAgent::handleSubscribe(QLocalSocket* socket) {
+    if (!m_subscribers.contains(socket)) {
+        m_subscribers.append(socket);
+        qDebug() << "Subscriber added, total:" << m_subscribers.size();
+    }
+
+    // Sync active sessions
+    for (const auto& [cookie, session] : m_sessions) {
+        m_ipcServer.sendJson(socket, session->toCreatedEvent());
+        m_ipcServer.sendJson(socket, session->toUpdatedEvent());
+    }
+
+    m_ipcServer.sendJson(socket, QJsonObject{
+        {"type", "subscribed"},
+        {"sessionCount", (int)m_sessions.size()}
+    });
+}
+
+void CAgent::handleKeyringRequest(QLocalSocket* socket, const QJsonObject& msg) {
+    pid_t peerPid = noctalia::IpcServer::getPeerPid(socket);
+    m_keyringManager.handleRequest(msg, socket, peerPid);
+}
+
+void CAgent::handlePinentryRequest(QLocalSocket* socket, const QJsonObject& msg) {
+    pid_t peerPid = noctalia::IpcServer::getPeerPid(socket);
+    m_pinentryManager.handleRequest(msg, socket, peerPid);
+}
+
+void CAgent::handleRespond(QLocalSocket* socket, const QJsonObject& msg) {
+    const QString cookie   = msg.value("id").toString();
+    const QString response = msg.value("response").toString();
+
+    if (m_keyringManager.hasPendingRequest(cookie)) {
+        QLocalSocket* origSocket = m_keyringManager.getSocketForRequest(cookie);
+        QJsonObject reply = m_keyringManager.handleResponse(cookie, response);
+        if (origSocket) m_ipcServer.sendJson(origSocket, reply, true);
+        m_ipcServer.sendJson(socket, QJsonObject{{"type", "ok"}});
         return;
     }
 
-    KeyringRequest req = pendingKeyringRequests.take(cookie);
-
-    std::print("Cancelling keyring request: cookie={}\n", cookie.toStdString());
-
-    if (req.replySocket && req.replySocket->isOpen()) {
-        QJsonObject response;
-        response["type"]   = "keyring_response";
-        response["id"]     = cookie;
-        response["result"] = "cancelled";
-        sendJson(req.replySocket, response);
+    if (m_pinentryManager.hasPendingRequest(cookie)) {
+        QLocalSocket* origSocket = m_pinentryManager.getSocketForRequest(cookie);
+        auto result = m_pinentryManager.handleResponse(cookie, response);
+        if (origSocket) m_ipcServer.sendJson(origSocket, result.socketResponse, true);
+        m_ipcServer.sendJson(socket, QJsonObject{{"type", "ok"}});
+        return;
     }
 
-    // Notify UI that the request is complete (cancelled)
-    QJsonObject event;
-    event["type"]   = "complete";
-    event["id"]     = cookie;
-    event["result"] = "cancelled";
-    enqueueEvent(event);
+    m_listener->submitPassword(cookie, response);
+    m_ipcServer.sendJson(socket, QJsonObject{{"type", "ok"}});
+}
+
+void CAgent::handleCancel(QLocalSocket* socket, const QJsonObject& msg) {
+    const QString cookie = msg.value("id").toString();
+
+    if (m_keyringManager.hasPendingRequest(cookie)) {
+        QLocalSocket* origSocket = m_keyringManager.getSocketForRequest(cookie);
+        QJsonObject reply = m_keyringManager.handleCancel(cookie);
+        if (origSocket) m_ipcServer.sendJson(origSocket, reply);
+        m_ipcServer.sendJson(socket, QJsonObject{{"type", "ok"}});
+        return;
+    }
+
+    if (m_pinentryManager.hasPendingRequest(cookie)) {
+        QLocalSocket* origSocket = m_pinentryManager.getSocketForRequest(cookie);
+        QJsonObject reply = m_pinentryManager.handleCancel(cookie);
+        if (origSocket) m_ipcServer.sendJson(origSocket, reply);
+        m_ipcServer.sendJson(socket, QJsonObject{{"type", "ok"}});
+        return;
+    }
+
+    m_listener->cancelPending(cookie);
+    m_ipcServer.sendJson(socket, QJsonObject{{"type", "ok"}});
+}
+
+void CAgent::emitSessionEvent(const QJsonObject& event) {
+    qDebug() << "Broadcasting event:" << event["type"].toString()
+             << "to" << m_subscribers.size() << "subscribers";
+
+    for (QLocalSocket* subscriber : m_subscribers) {
+        if (subscriber && subscriber->isValid()) {
+            m_ipcServer.sendJson(subscriber, event);
+        }
+    }
+
+    eventQueue.enqueue(event);
+    processNextWaiter();
+}
+
+void CAgent::processNextWaiter() {
+    while (!nextWaiters.isEmpty() && !eventQueue.isEmpty()) {
+        QLocalSocket* socket = nextWaiters.takeFirst();
+        handleNext(socket);
+    }
+}
+
+void CAgent::onPolkitRequest(const QString& cookie, const QString& message,
+                             const QString& iconName, const QString& actionId,
+                             const QString& user, const PolkitQt1::Details& details) {
+    qDebug() << "POLKIT REQUEST" << cookie;
+
+    noctalia::Session::Context ctx;
+    ctx.message = message;
+    ctx.actionId = actionId;
+    ctx.user = user;
+
+    auto pid = RequestContextHelper::extractSubjectPid(details);
+    if (pid) {
+        auto proc = RequestContextHelper::readProc(*pid);
+        if (proc) {
+            auto actor = RequestContextHelper::resolveRequestorFromSubject(*proc, getuid());
+            ctx.requestor.name = actor.displayName;
+            ctx.requestor.icon = actor.iconName;
+            ctx.requestor.fallbackLetter = actor.fallbackLetter;
+            ctx.requestor.pid = *pid;
+        }
+    }
+
+    if (ctx.requestor.name.isEmpty()) {
+        ctx.requestor.name = "Unknown";
+        ctx.requestor.fallbackLetter = "?";
+    }
+
+    createSession(cookie, noctalia::Session::Source::Polkit, ctx);
+}
+
+void CAgent::onSessionRequest(const QString& cookie, const QString& prompt, bool echo) {
+    auto it = m_sessions.find(cookie);
+    if (it == m_sessions.end()) {
+        qWarning() << "Session not found:" << cookie;
+        return;
+    }
+    
+    it->second->setPrompt(prompt, echo);
+    emitSessionEvent(it->second->toUpdatedEvent());
+}
+
+void CAgent::onSessionComplete(const QString& cookie, bool success) {
+    auto it = m_sessions.find(cookie);
+    if (it == m_sessions.end()) {
+        qWarning() << "Session not found:" << cookie;
+        return;
+    }
+    
+    it->second->close(success ? noctalia::Session::Result::Success 
+                              : noctalia::Session::Result::Cancelled);
+    emitSessionEvent(it->second->toClosedEvent());
+    m_sessions.erase(it);
+}
+
+void CAgent::onSessionRetry(const QString& cookie, const QString& error) {
+    auto it = m_sessions.find(cookie);
+    if (it == m_sessions.end()) return;
+    
+    it->second->setError(error);
+    emitSessionEvent(it->second->toUpdatedEvent());
+}
+
+void CAgent::onPolkitCompleted(bool gainedAuthorization) {
+}
+
+// Centralized session management
+void CAgent::createSession(const QString& id, Session::Source source, Session::Context ctx) {
+    auto session = std::make_unique<noctalia::Session>(id, source, ctx);
+    emitSessionEvent(session->toCreatedEvent());
+    m_sessions[id] = std::move(session);
+}
+
+void CAgent::updateSessionPrompt(const QString& id, const QString& prompt, bool echo) {
+    auto it = m_sessions.find(id);
+    if (it == m_sessions.end()) {
+        qWarning() << "updateSessionPrompt: Session not found:" << id;
+        return;
+    }
+    it->second->setPrompt(prompt, echo);
+    emitSessionEvent(it->second->toUpdatedEvent());
+}
+
+void CAgent::updateSessionError(const QString& id, const QString& error) {
+    auto it = m_sessions.find(id);
+    if (it == m_sessions.end()) {
+        qWarning() << "updateSessionError: Session not found:" << id;
+        return;
+    }
+    it->second->setError(error);
+    emitSessionEvent(it->second->toUpdatedEvent());
+}
+
+QJsonObject CAgent::closeSession(const QString& id, Session::Result result, bool deferred) {
+    auto it = m_sessions.find(id);
+    if (it == m_sessions.end()) {
+        qWarning() << "closeSession: Session not found:" << id;
+        return QJsonObject{};
+    }
+
+    it->second->close(result);
+    QJsonObject event = it->second->toClosedEvent();
+    m_sessions.erase(it);
+
+    if (!deferred) {
+        emitSessionEvent(event);
+        return QJsonObject{};
+    }
+    return event;
+}
+
+Session* CAgent::getSession(const QString& id) {
+    auto it = m_sessions.find(id);
+    return (it != m_sessions.end()) ? it->second.get() : nullptr;
 }

@@ -1,73 +1,89 @@
 #pragma once
 
 #include <QCoreApplication>
-#include <QDBusInterface>
-#include <QHash>
-#include <QJsonDocument>
-#include <QJsonObject>
 #include <QLocalServer>
-#include <QLocalSocket>
 #include <QPointer>
 #include <QQueue>
-#include <QString>
-
-#include "PolkitListener.hpp"
-#include <polkitqt1-subject.h>
-
+#include <QRegularExpression>
+#include <QTimer>
+#include <QSharedPointer>
 #include <memory>
+#include <unordered_map>
 
-class CAgent {
-  public:
-    CAgent()  = default;
-    ~CAgent() = default;
+#include "Session.hpp"
+#include "PolkitListener.hpp"
+#include "ipc/IpcServer.hpp"
+#include "managers/KeyringManager.hpp"
+#include "managers/PinentryManager.hpp"
 
-    bool start(QCoreApplication& app, const QString& socketPath);
-    void initAuthPrompt(const QString& cookie);
-    void enqueueRequest(const QString& cookie);
-    void enqueueError(const QString& cookie, const QString& error);
-    void enqueueComplete(const QString& cookie, const QString& result);
-    bool handleRespond(const QString& cookie, const QString& password);
-    bool handleCancel(const QString& cookie);
+namespace noctalia {
 
-  private:
-    // Keyring request tracking
-    struct KeyringRequest {
-        QString                cookie;
-        QString                title;
-        QString                message;
-        QString                description;
-        QString                warning;
-        qint64                 originPid   = 0;
-        bool                   passwordNew = false;
-        bool                   confirmOnly = false;
-        QPointer<QLocalSocket> replySocket;
+    class CAgent : public QObject {
+        Q_OBJECT
+
+      public:
+        explicit CAgent(QObject* parent = nullptr);
+        ~CAgent() override;
+
+        // Returns true on success
+        bool start(QCoreApplication& app, const QString& socketPath);
+
+      private:
+        void onClientDisconnected(QLocalSocket* socket);
+
+        // Message handlers
+        void handleMessage(QLocalSocket* socket, const QString& type, const QJsonObject& msg);
+        void handleNext(QLocalSocket* socket);
+        void handleSubscribe(QLocalSocket* socket);
+        void handleKeyringRequest(QLocalSocket* socket, const QJsonObject& msg);
+        void handlePinentryRequest(QLocalSocket* socket, const QJsonObject& msg);
+        void handleRespond(QLocalSocket* socket, const QJsonObject& msg);
+        void handleCancel(QLocalSocket* socket, const QJsonObject& msg);
+
+        // Polkit event handlers (called directly by PolkitListener)
+        void onPolkitCompleted(bool gainedAuthorization);
+
+      public:
+        void onPolkitRequest(const QString& cookie, const QString& message,
+                             const QString& iconName, const QString& actionId,
+                             const QString& user, const PolkitQt1::Details& details);
+        void onSessionRequest(const QString& cookie, const QString& prompt, bool echo);
+        void onSessionComplete(const QString& cookie, bool success);
+        void onSessionRetry(const QString& cookie, const QString& error);
+
+        void emitSessionEvent(const QJsonObject& event);
+
+        // Centralized session management - used by all managers
+        void createSession(const QString& id, Session::Source source, Session::Context ctx);
+        void updateSessionPrompt(const QString& id, const QString& prompt, bool echo = false);
+        void updateSessionError(const QString& id, const QString& error);
+        // Returns closed event if deferred=true, otherwise emits immediately and returns empty object
+        QJsonObject closeSession(const QString& id, Session::Result result, bool deferred = false);
+        Session* getSession(const QString& id);
+
+      private:
+        noctalia::IpcServer             m_ipcServer;
+        noctalia::KeyringManager        m_keyringManager;
+        noctalia::PinentryManager       m_pinentryManager;
+
+        QSharedPointer<CPolkitListener> m_listener;
+
+        // Queue of pending events for UI
+        QQueue<QJsonObject> eventQueue;
+
+        // Waiters for "next" event
+        QList<QLocalSocket*> nextWaiters;
+
+        // Active sessions
+        std::unordered_map<QString, std::unique_ptr<noctalia::Session>> m_sessions;
+
+        // Active subscribers
+        QList<QLocalSocket*> m_subscribers;
+
+        void processNextWaiter();
     };
 
-    QHash<QString, KeyringRequest>                 pendingKeyringRequests;
+} // namespace noctalia
 
-    CPolkitListener                                listener;
-    std::shared_ptr<PolkitQt1::UnixSessionSubject> sessionSubject;
-
-    QLocalServer*                                  ipcServer = nullptr;
-    QQueue<QJsonObject>                            eventQueue;
-    QString                                        ipcSocketPath;
-    bool                                           fingerprintAvailable = false;
-
-    void                                           setupIpcServer();
-    bool                                           checkFingerprintAvailable();
-    void                                           handleSocketLine(QLocalSocket* socket, const QByteArray& line);
-    void                                           sendJson(QLocalSocket* socket, const QJsonObject& obj, bool disconnect = true, bool secure = false);
-    void                                           enqueueEvent(const QJsonObject& event);
-    QJsonObject                                    buildRequestEvent(const QString& cookie) const;
-    QJsonObject                                    buildKeyringRequestEvent(const KeyringRequest& req) const;
-    void                                           cleanupKeyringRequestsForSocket(QLocalSocket* socket);
-
-    // Keyring request handlers
-    void handleKeyringRequest(QLocalSocket* socket, const QJsonObject& obj);
-    void respondToKeyringRequest(const QString& cookie, const QString& password);
-    void cancelKeyringRequest(const QString& cookie);
-
-    friend class CPolkitListener;
-};
-
-inline std::unique_ptr<CAgent> g_pAgent;
+using CAgent = noctalia::CAgent;
+extern std::unique_ptr<CAgent> g_pAgent;
