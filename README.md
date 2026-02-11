@@ -1,4 +1,4 @@
-# noctalia-auth
+# bb-auth
 
 Unified authentication daemon for Noctalia Shell.
 
@@ -6,22 +6,22 @@ Unified authentication daemon for Noctalia Shell.
 - GNOME Keyring system prompter replacement
 - GPG pinentry bridge
 
-This daemon is consumed by the `polkit-auth` plugin in `noctalia-plugins`.
+This daemon is consumed by the `bb-auth` plugin in `noctalia-plugins`.
 
 ## Runtime Contract
 
-- Service: `noctalia-auth.service`
-- Socket: `$XDG_RUNTIME_DIR/noctalia-auth.sock`
-- Main binary: `noctalia-auth`
-- Pinentry binary: `pinentry-noctalia`
-- Fallback UI binary: `noctalia-auth-fallback`
+- Service: `bb-auth.service`
+- Socket: `$XDG_RUNTIME_DIR/bb-auth.sock`
+- Main binary: `bb-auth`
+- Pinentry binary: `pinentry-bb`
+- Fallback UI binary: `bb-auth-fallback`
 
 ## Install
 
 ### AUR
 
 ```bash
-yay -S noctalia-auth-git
+yay -S bb-auth-git
 ```
 
 ### Manual build
@@ -40,7 +40,7 @@ Enable the service:
 
 ```bash
 systemctl --user daemon-reload
-systemctl --user enable --now noctalia-auth.service
+systemctl --user enable --now bb-auth.service
 ```
 
 On each service start, bootstrap automatically:
@@ -48,7 +48,7 @@ On each service start, bootstrap automatically:
 - validates and repairs `gpg-agent` pinentry path when stale
 - stops known competing polkit agents for the current session
 
-If no shell UI provider is active when an auth request arrives, daemon launches `noctalia-auth-fallback` automatically.
+If no shell UI provider is active when an auth request arrives, daemon launches `bb-auth-fallback` automatically.
 The fallback app enforces a single-instance lock and stands down when a higher-priority shell provider becomes active.
 
 For tiling compositors, the fallback app uses a normal top-level window so it can still be tiled manually by the compositor.
@@ -60,7 +60,7 @@ windowrule {
   float = on
   center = on
   size = 560 360
-  match:class = noctalia-auth-fallback
+  match:class = bb-auth-fallback
 }
 ```
 
@@ -86,23 +86,23 @@ Default policy is `session` (Linux-safe best practice): competing agents are sto
 
 Optional modes can be set with a service override environment variable:
 
-- `NOCTALIA_AUTH_CONFLICT_MODE=session` (default)
-- `NOCTALIA_AUTH_CONFLICT_MODE=persistent` (disable known competing user services/autostarts)
-- `NOCTALIA_AUTH_CONFLICT_MODE=warn` (detect only)
+- `BB_AUTH_CONFLICT_MODE=session` (default)
+- `BB_AUTH_CONFLICT_MODE=persistent` (disable known competing user services/autostarts)
+- `BB_AUTH_CONFLICT_MODE=warn` (detect only)
 
-In `persistent` mode, user autostart entries are backed up under `~/.local/state/noctalia-auth/autostart-backups/` before override files are written.
+In `persistent` mode, user autostart entries are backed up under `~/.local/state/bb-auth/autostart-backups/` before override files are written.
 
 Example:
 
 ```bash
-systemctl --user edit noctalia-auth.service
+systemctl --user edit bb-auth.service
 ```
 
 Add:
 
 ```ini
 [Service]
-Environment=NOCTALIA_AUTH_CONFLICT_MODE=session
+Environment=BB_AUTH_CONFLICT_MODE=session
 ```
 
 ## Smoke checks
@@ -119,6 +119,19 @@ For common failures, see `docs/TROUBLESHOOTING.md`.
 ## Nix
 
 ```bash
-nix build .#noctalia-auth
-nix profile install .#noctalia-auth
+nix build .#bb-auth
+nix profile install .#bb-auth
 ```
+
+## Rebrand Notice
+
+Previously known as `noctalia-auth` (daemon) and `polkit-auth` (plugin).  
+Renamed to BB Auth as part of the "habibe → bibe → BB" branding.  
+If you were using the previous names, disable the old service and enable the new one:
+
+```bash
+systemctl --user disable noctalia-auth
+systemctl --user enable bb-auth
+```
+
+The plugin ID has changed from `polkit-auth` to `bb-auth`. Reinstall through the Noctalia plugin UI.

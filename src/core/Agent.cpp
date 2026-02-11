@@ -43,7 +43,7 @@ QJsonObject readBootstrapState() {
         return bootstrap;
     }
 
-    QFile stateFile(stateRoot + "/noctalia-auth/bootstrap-state.env");
+    QFile stateFile(stateRoot + "/bb-auth/bootstrap-state.env");
     if (!stateFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
         return bootstrap;
     }
@@ -72,7 +72,7 @@ QJsonObject readBootstrapState() {
         }
     }
 
-    const QByteArray modeOverride = qgetenv("NOCTALIA_AUTH_CONFLICT_MODE");
+    const QByteArray modeOverride = qgetenv("BB_AUTH_CONFLICT_MODE");
     if (!modeOverride.isEmpty()) {
         bootstrap["mode"] = QString::fromLocal8Bit(modeOverride);
     }
@@ -699,7 +699,7 @@ void CAgent::ensureFallbackUiRunning(const QString& reason) {
 
     {
         QProcess probe;
-        probe.start("pgrep", QStringList{"-u", QString::number(getuid()), "-f", "noctalia-auth-fallback"});
+        probe.start("pgrep", QStringList{"-u", QString::number(getuid()), "-f", "bb-auth-fallback"});
         if (probe.waitForFinished(500) && probe.exitStatus() == QProcess::NormalExit && probe.exitCode() == 0) {
             return;
         }
@@ -710,9 +710,9 @@ void CAgent::ensureFallbackUiRunning(const QString& reason) {
         return;
     }
 
-    QString fallbackPath = QString::fromLocal8Bit(qgetenv("NOCTALIA_AUTH_FALLBACK_PATH"));
+    QString fallbackPath = QString::fromLocal8Bit(qgetenv("BB_AUTH_FALLBACK_PATH"));
     if (fallbackPath.isEmpty()) {
-        fallbackPath = QCoreApplication::applicationDirPath() + "/noctalia-auth-fallback";
+        fallbackPath = QCoreApplication::applicationDirPath() + "/bb-auth-fallback";
     }
 
     const QFileInfo info(fallbackPath);

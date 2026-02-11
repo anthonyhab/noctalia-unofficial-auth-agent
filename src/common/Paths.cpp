@@ -6,7 +6,7 @@ namespace noctalia {
 
     QString socketPath() {
         const auto runtimeDir = QStandardPaths::writableLocation(QStandardPaths::RuntimeLocation);
-        return runtimeDir + QStringLiteral("/noctalia-auth.sock");
+        return runtimeDir + QStringLiteral("/bb-auth.sock");
     }
 
 } // namespace noctalia

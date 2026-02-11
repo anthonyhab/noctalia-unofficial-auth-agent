@@ -4,7 +4,7 @@
 
 namespace noctalia {
 
-    // Returns the default socket path: $XDG_RUNTIME_DIR/noctalia-auth.sock
+    // Returns the default socket path: $XDG_RUNTIME_DIR/bb-auth.sock
     QString socketPath();
 
 } // namespace noctalia

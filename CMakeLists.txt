@@ -4,7 +4,7 @@ cmake_minimum_required(VERSION 3.16)
 file(READ "${CMAKE_SOURCE_DIR}/VERSION" VER_RAW)
 string(STRIP ${VER_RAW} VER)
 
-project(noctalia-auth VERSION ${VER} LANGUAGES C CXX)
+project(bb-auth VERSION ${VER} LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -41,8 +41,8 @@ pkg_check_modules(
 
 qt_standard_project_setup(REQUIRES 6.5)
 
-# Unified noctalia-auth binary
-qt_add_executable(noctalia-auth
+# Unified bb-auth binary
+qt_add_executable(bb-auth
     # Main entry point
     src/main.cpp
 
@@ -80,13 +80,13 @@ qt_add_executable(noctalia-auth
 
     # Keyring prompter (C code, compiled into main binary)
     src/keyring-prompter/main.c
-    src/keyring-prompter/noctalia-prompt.c
-    src/keyring-prompter/noctalia-prompt.h
+    src/keyring-prompter/bb-prompt.c
+    src/keyring-prompter/bb-prompt.h
     src/keyring-prompter/ipc-client.c
     src/keyring-prompter/ipc-client.h
 )
 
-target_link_libraries(noctalia-auth
+target_link_libraries(bb-auth
     PRIVATE
         Qt6::Core
         Qt6::Network
@@ -101,16 +101,16 @@ set(LIBEXECDIR ${CMAKE_INSTALL_FULL_LIBEXECDIR})
 set(DATADIR ${CMAKE_INSTALL_FULL_DATADIR})
 
 # Configure service files
-configure_file(assets/noctalia-auth.service.in noctalia-auth.service @ONLY)
-configure_file(assets/noctalia-auth-dbus.service.in noctalia-auth-dbus.service @ONLY)
+configure_file(assets/bb-auth.service.in bb-auth.service @ONLY)
+configure_file(assets/bb-auth-dbus.service.in bb-auth-dbus.service @ONLY)
 configure_file(assets/org.gnome.keyring.SystemPrompter.service.in org.gnome.keyring.SystemPrompter.service @ONLY)
-configure_file(assets/noctalia-auth-bootstrap.sh.in noctalia-auth-bootstrap @ONLY)
+configure_file(assets/bb-auth-bootstrap.sh.in bb-auth-bootstrap @ONLY)
 
 # Install main binary
-install(TARGETS noctalia-auth
+install(TARGETS bb-auth
         DESTINATION ${CMAKE_INSTALL_LIBEXECDIR})
 
-qt_add_executable(noctalia-auth-fallback
+qt_add_executable(bb-auth-fallback
     src/fallback/main.cpp
     src/fallback/FallbackClient.cpp
     src/fallback/FallbackClient.hpp
@@ -118,42 +118,42 @@ qt_add_executable(noctalia-auth-fallback
     src/fallback/FallbackWindow.hpp
 )
 
-target_link_libraries(noctalia-auth-fallback
+target_link_libraries(bb-auth-fallback
     PRIVATE
         Qt6::Core
         Qt6::Network
         Qt6::Widgets
 )
 
-install(TARGETS noctalia-auth-fallback
+install(TARGETS bb-auth-fallback
         DESTINATION ${CMAKE_INSTALL_LIBEXECDIR})
 
-install(PROGRAMS ${CMAKE_BINARY_DIR}/noctalia-auth-bootstrap
+install(PROGRAMS ${CMAKE_BINARY_DIR}/bb-auth-bootstrap
         DESTINATION ${CMAKE_INSTALL_LIBEXECDIR})
 
 # Install symlinks for protocol compatibility
 install(CODE "
     execute_process(
         COMMAND ${CMAKE_COMMAND} -E create_symlink
-            noctalia-auth
-            \$ENV{DESTDIR}${CMAKE_INSTALL_FULL_LIBEXECDIR}/noctalia-keyring-prompter
+            bb-auth
+            \$ENV{DESTDIR}${CMAKE_INSTALL_FULL_LIBEXECDIR}/bb-keyring-prompter
     )
     execute_process(
         COMMAND ${CMAKE_COMMAND} -E create_symlink
-            noctalia-auth
-            \$ENV{DESTDIR}${CMAKE_INSTALL_FULL_LIBEXECDIR}/pinentry-noctalia
+            bb-auth
+            \$ENV{DESTDIR}${CMAKE_INSTALL_FULL_LIBEXECDIR}/pinentry-bb
     )
 ")
 
 # Install systemd user service
-install(FILES ${CMAKE_BINARY_DIR}/noctalia-auth.service
+install(FILES ${CMAKE_BINARY_DIR}/bb-auth.service
         DESTINATION "${CMAKE_INSTALL_LIBDIR}/systemd/user")
 
 # Install D-Bus service file
-install(FILES ${CMAKE_BINARY_DIR}/noctalia-auth-dbus.service
+install(FILES ${CMAKE_BINARY_DIR}/bb-auth-dbus.service
         DESTINATION ${CMAKE_INSTALL_DATADIR}/dbus-1/services
-        RENAME org.noctalia.polkitagent.service)
+        RENAME org.bb.auth.service)
 
 # Install keyring prompter D-Bus service file template
 install(FILES ${CMAKE_BINARY_DIR}/org.gnome.keyring.SystemPrompter.service
-        DESTINATION ${CMAKE_INSTALL_DATADIR}/noctalia-auth)
+        DESTINATION ${CMAKE_INSTALL_DATADIR}/bb-auth)

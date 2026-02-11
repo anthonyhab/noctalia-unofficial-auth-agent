@@ -17,7 +17,7 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-int noctalia_keyring_main(int argc, char *argv[]);
+int bb_auth_keyring_main(int argc, char *argv[]);
 #ifdef __cplusplus
 }
 #endif
@@ -122,30 +122,30 @@ fallback_to_gcr_prompter (char *argv[])
 
 /* Renamed entry point for unified binary */
 int
-noctalia_keyring_main (int argc, char *argv[])
+bb_auth_keyring_main (int argc, char *argv[])
 {
     guint owner_id;
 
     setlocale (LC_ALL, "");
 
     /* Enable debug output if requested */
-    if (g_getenv ("NOCTALIA_KEYRING_DEBUG") != NULL) {
+    if (g_getenv ("BB_AUTH_KEYRING_DEBUG") != NULL) {
         g_log_set_handler (NULL, G_LOG_LEVEL_DEBUG | G_LOG_LEVEL_INFO |
                            G_LOG_LEVEL_MESSAGE | G_LOG_LEVEL_WARNING |
                            G_LOG_LEVEL_CRITICAL | G_LOG_LEVEL_ERROR,
                            g_log_default_handler, NULL);
     }
 
-    g_message ("noctalia-auth starting in keyring mode");
+    g_message ("bb-auth starting in keyring mode");
 
-    /* Check if noctalia-auth daemon socket is available */
-    if (!noctalia_ipc_ping ()) {
-        g_message ("noctalia-auth daemon socket not available");
+    /* Check if bb-auth daemon socket is available */
+    if (!bb_auth_ipc_ping ()) {
+        g_message ("bb-auth daemon socket not available");
         fallback_to_gcr_prompter (argv);
         /* Not reached */
     }
 
-    g_message ("noctalia-auth daemon socket is available, registering prompter");
+    g_message ("bb-auth daemon socket is available, registering prompter");
 
     /* Create system prompter with our custom prompt type */
     the_prompter = gcr_system_prompter_new (GCR_SYSTEM_PROMPTER_SINGLE,

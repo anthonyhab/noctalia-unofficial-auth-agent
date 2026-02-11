@@ -1,5 +1,5 @@
 # Maintainer: Anthony Habibe <anthony@noctalia.dev>
-pkgname=noctalia-auth-git
+pkgname=bb-auth-git
 pkgver=r43.fc40397
 pkgrel=1
 pkgdesc="Unified polkit, keyring, and pinentry authentication daemon for noctalia-shell"
@@ -17,9 +17,9 @@ makedepends=(
     'git'
     'cmake'
 )
-provides=('noctalia-auth' 'noctalia-auth-git')
-conflicts=('noctalia-auth' 'noctalia-polkit-git' 'noctalia-unofficial-auth-agent')
-replaces=('noctalia-polkit-git')
+provides=('bb-auth' 'bb-auth-git')
+conflicts=('bb-auth' 'noctalia-auth-git' 'noctalia-polkit-git' 'noctalia-unofficial-auth-agent')
+replaces=('noctalia-auth-git' 'noctalia-polkit-git')
 source=("${pkgname}::git+https://github.com/anthonyhab/noctalia-polkit.git")
 sha256sums=('SKIP')
 

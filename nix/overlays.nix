@@ -11,11 +11,11 @@
   date = mkDate (self.lastModifiedDate or "19700101");
   version = lib.removeSuffix "\n" (builtins.readFile ../VERSION);
 in {
-  default = self.overlays."noctalia-auth";
+  default = self.overlays."bb-auth";
 
-  "noctalia-auth" = lib.composeManyExtensions [
+  "bb-auth" = lib.composeManyExtensions [
     (final: prev: {
-      "noctalia-auth" = final.callPackage ./. {
+      "bb-auth" = final.callPackage ./. {
         stdenv = final.gcc15Stdenv;
         version = "${version}+date=${date}_${self.shortRev or "dirty"}";
       };

@@ -41,7 +41,7 @@ namespace {
 
     int runCli(QCoreApplication& app, const QString& socketPathOverride) {
         QCommandLineParser parser;
-        parser.setApplicationDescription("Noctalia Auth - Unified authentication agent");
+        parser.setApplicationDescription("BB Auth - Unified authentication agent");
         parser.addHelpOption();
         parser.addVersionOption();
 
@@ -146,7 +146,7 @@ int main(int argc, char* argv[]) {
     }
 
     QCoreApplication app(argc, argv);
-    app.setApplicationName("noctalia-auth");
+    app.setApplicationName("bb-auth");
     app.setApplicationVersion("1.0.0");
 
     return runCli(app, {});

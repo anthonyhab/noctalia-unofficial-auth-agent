@@ -15,7 +15,7 @@
   inherit (lib.strings) hasSuffix;
 in
   stdenv.mkDerivation {
-    pname = "noctalia-auth";
+    pname = "bb-auth";
     inherit version;
 
     src = cleanSourceWith {
@@ -47,7 +47,7 @@ in
       homepage = "https://github.com/anthonyhab/noctalia-polkit";
       license = lib.licenses.bsd3;
       maintainers = [lib.maintainers.fufexan];
-      mainProgram = "noctalia-auth";
+      mainProgram = "bb-auth";
       platforms = lib.platforms.linux;
     };
   }

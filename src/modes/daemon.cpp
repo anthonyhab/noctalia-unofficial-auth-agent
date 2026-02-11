@@ -9,7 +9,7 @@ namespace modes {
     int runDaemon(QCoreApplication& app, const QString& socketPathOverride) {
         const QString socketPath = socketPathOverride.isEmpty() ? noctalia::socketPath() : socketPathOverride;
 
-        std::print("Starting noctalia-auth daemon\n");
+        std::print("Starting bb-auth daemon\n");
         std::print("Socket path: {}\n", socketPath.toStdString());
 
         g_pAgent = std::make_unique<CAgent>();

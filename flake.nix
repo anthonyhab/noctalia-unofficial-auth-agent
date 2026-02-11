@@ -26,14 +26,14 @@
     overlays = import ./nix/overlays.nix {inherit inputs self lib;};
 
     packages = eachSystem (system: {
-      default = self.packages.${system}."noctalia-auth";
-      inherit (pkgsFor.${system}) "noctalia-auth";
+      default = self.packages.${system}."bb-auth";
+      inherit (pkgsFor.${system}) "bb-auth";
     });
 
     devShells = eachSystem (system: {
       default = import ./nix/shell.nix {
         pkgs = pkgsFor.${system};
-        noctaliaAuth = pkgsFor.${system}."noctalia-auth";
+        bbAuth = pkgsFor.${system}."bb-auth";
       };
     });
   };

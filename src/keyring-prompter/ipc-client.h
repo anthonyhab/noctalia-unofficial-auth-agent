@@ -6,12 +6,12 @@
 G_BEGIN_DECLS
 
 /* Check if noctalia-auth socket is available */
-gboolean noctalia_ipc_ping (void);
+gboolean bb_auth_ipc_ping (void);
 
 /* Send a keyring password request, blocks until response received
  * Returns TRUE on success with password in out_password (caller must free)
  * Returns FALSE on cancel or error */
-gboolean noctalia_ipc_send_keyring_request (const gchar *cookie,
+gboolean bb_auth_ipc_send_keyring_request (const gchar *cookie,
                                             const gchar *title,
                                             const gchar *message,
                                             const gchar *description,
@@ -21,13 +21,13 @@ gboolean noctalia_ipc_send_keyring_request (const gchar *cookie,
 
 /* Send a confirm request, blocks until response
  * Returns TRUE if confirmed, FALSE if cancelled */
-gboolean noctalia_ipc_send_confirm_request (const gchar *cookie,
+gboolean bb_auth_ipc_send_confirm_request (const gchar *cookie,
                                             const gchar *title,
                                             const gchar *message,
                                             const gchar *description);
 
 /* Send cancel for a pending request */
-void noctalia_ipc_send_cancel (const gchar *cookie);
+void bb_auth_ipc_send_cancel (const gchar *cookie);
 
 G_END_DECLS
 

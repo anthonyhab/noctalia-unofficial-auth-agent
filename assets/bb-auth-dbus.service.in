@@ -1,0 +1,4 @@
+[D-BUS Service]
+Name=org.bb.auth
+Exec=@LIBEXECDIR@/bb-auth --daemon
+SystemdService=bb-auth.service

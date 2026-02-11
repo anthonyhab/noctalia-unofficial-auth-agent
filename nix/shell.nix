@@ -1,9 +1,9 @@
 {
   pkgs ? import <nixpkgs> {},
-  noctaliaAuth ? pkgs.callPackage ./default.nix {},
+  bbAuth ? pkgs.callPackage ./default.nix {},
   ...
 }: pkgs.mkShell {
-  inputsFrom = [ noctaliaAuth ];
+  inputsFrom = [ bbAuth ];
   nativeBuildInputs = [ pkgs.clang-tools ];
 
   shellHook = ''

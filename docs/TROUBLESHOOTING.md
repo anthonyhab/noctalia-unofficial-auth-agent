@@ -25,14 +25,14 @@ If it still fails, force-run the local fixer:
 Check:
 
 ```bash
-systemctl --user status noctalia-auth.service
-journalctl --user -u noctalia-auth.service -n 200 --no-pager
+systemctl --user status bb-auth.service
+journalctl --user -u bb-auth.service -n 200 --no-pager
 ```
 
 If another polkit agent is running, check bootstrap logs:
 
 ```bash
-journalctl --user -u noctalia-auth.service -n 200 --no-pager | grep noctalia-auth-bootstrap
+journalctl --user -u bb-auth.service -n 200 --no-pager | grep bb-auth-bootstrap
 ```
 
 Default policy is session-only conflict handling. Persistent disable is opt-in via service override.
@@ -44,6 +44,6 @@ Daemon should launch fallback UI automatically.
 Check:
 
 ```bash
-ls -l ~/.local/libexec/noctalia-auth-fallback
-journalctl --user -u noctalia-auth.service -n 200 --no-pager | grep "Launched fallback UI"
+ls -l ~/.local/libexec/bb-auth-fallback
+journalctl --user -u bb-auth.service -n 200 --no-pager | grep "Launched fallback UI"
 ```

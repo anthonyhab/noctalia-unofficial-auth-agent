@@ -1,11 +1,11 @@
 #define GCR_API_SUBJECT_TO_CHANGE 1
-#include "noctalia-prompt.h"
+#include "bb-prompt.h"
 #include "ipc-client.h"
 
 #include <string.h>
 #include <unistd.h>
 
-struct _NoctaliaPrompt {
+struct _BbAuthPrompt {
     GObject parent_instance;
 
     /* GcrPrompt properties */
@@ -27,10 +27,10 @@ struct _NoctaliaPrompt {
     gint cookie_counter;
 };
 
-static void noctalia_prompt_iface_init (GcrPromptInterface *iface);
+static void bb_auth_prompt_iface_init (GcrPromptInterface *iface);
 
-G_DEFINE_TYPE_WITH_CODE (NoctaliaPrompt, noctalia_prompt, G_TYPE_OBJECT,
-                         G_IMPLEMENT_INTERFACE (GCR_TYPE_PROMPT, noctalia_prompt_iface_init))
+G_DEFINE_TYPE_WITH_CODE (BbAuthPrompt, bb_auth_prompt, G_TYPE_OBJECT,
+                         G_IMPLEMENT_INTERFACE (GCR_TYPE_PROMPT, bb_auth_prompt_iface_init))
 
 enum {
     PROP_0,
@@ -49,12 +49,12 @@ enum {
 };
 
 static void
-noctalia_prompt_set_property (GObject      *obj,
+bb_auth_prompt_set_property (GObject      *obj,
                               guint         prop_id,
                               const GValue *value,
                               GParamSpec   *pspec)
 {
-    NoctaliaPrompt *self = NOCTALIA_PROMPT (obj);
+    BbAuthPrompt *self = BB_AUTH_PROMPT (obj);
 
     switch (prop_id) {
     case PROP_TITLE:
@@ -101,12 +101,12 @@ noctalia_prompt_set_property (GObject      *obj,
 }
 
 static void
-noctalia_prompt_get_property (GObject    *obj,
+bb_auth_prompt_get_property (GObject    *obj,
                               guint       prop_id,
                               GValue     *value,
                               GParamSpec *pspec)
 {
-    NoctaliaPrompt *self = NOCTALIA_PROMPT (obj);
+    BbAuthPrompt *self = BB_AUTH_PROMPT (obj);
 
     switch (prop_id) {
     case PROP_TITLE:
@@ -148,9 +148,9 @@ noctalia_prompt_get_property (GObject    *obj,
 }
 
 static void
-noctalia_prompt_finalize (GObject *obj)
+bb_auth_prompt_finalize (GObject *obj)
 {
-    NoctaliaPrompt *self = NOCTALIA_PROMPT (obj);
+    BbAuthPrompt *self = BB_AUTH_PROMPT (obj);
 
     g_free (self->title);
     g_free (self->message);
@@ -163,11 +163,11 @@ noctalia_prompt_finalize (GObject *obj)
     g_free (self->password);
     g_free (self->request_cookie);
 
-    G_OBJECT_CLASS (noctalia_prompt_parent_class)->finalize (obj);
+    G_OBJECT_CLASS (bb_auth_prompt_parent_class)->finalize (obj);
 }
 
 static gchar *
-generate_cookie (NoctaliaPrompt *self)
+generate_cookie (BbAuthPrompt *self)
 {
     self->cookie_counter++;
     return g_strdup_printf ("keyring-%ld-%d-%d",
@@ -183,15 +183,15 @@ password_request_thread (GTask        *task,
                          gpointer      task_data,
                          GCancellable *cancellable)
 {
-    NoctaliaPrompt *self = NOCTALIA_PROMPT (source_object);
+    BbAuthPrompt *self = BB_AUTH_PROMPT (source_object);
     gchar *password = NULL;
     gboolean success;
 
     g_message ("Thread: Sending keyring password request: cookie=%s",
                self->request_cookie);
 
-    /* Send request to noctalia-auth - this blocks until user responds */
-    success = noctalia_ipc_send_keyring_request (
+    /* Send request to bb-auth - this blocks until user responds */
+    success = bb_auth_ipc_send_keyring_request (
         self->request_cookie,
         self->title ? self->title : "Unlock Keyring",
         self->message ? self->message : "Password required",
@@ -222,12 +222,12 @@ password_request_thread (GTask        *task,
 
 /* Async password prompt implementation */
 static void
-noctalia_prompt_password_async (GcrPrompt          *prompt,
+bb_auth_prompt_password_async (GcrPrompt          *prompt,
                                 GCancellable       *cancellable,
                                 GAsyncReadyCallback callback,
                                 gpointer            user_data)
 {
-    NoctaliaPrompt *self = NOCTALIA_PROMPT (prompt);
+    BbAuthPrompt *self = BB_AUTH_PROMPT (prompt);
     GTask *task;
 
     task = g_task_new (prompt, cancellable, callback, user_data);
@@ -248,7 +248,7 @@ noctalia_prompt_password_async (GcrPrompt          *prompt,
 }
 
 static const gchar *
-noctalia_prompt_password_finish (GcrPrompt    *prompt,
+bb_auth_prompt_password_finish (GcrPrompt    *prompt,
                                  GAsyncResult *result,
                                  GError      **error)
 {
@@ -264,14 +264,14 @@ confirm_request_thread (GTask        *task,
                         gpointer      task_data,
                         GCancellable *cancellable)
 {
-    NoctaliaPrompt *self = NOCTALIA_PROMPT (source_object);
+    BbAuthPrompt *self = BB_AUTH_PROMPT (source_object);
     gboolean confirmed;
 
     g_message ("Thread: Sending keyring confirm request: cookie=%s",
                self->request_cookie);
 
-    /* Send confirm request to noctalia-auth */
-    confirmed = noctalia_ipc_send_confirm_request (
+    /* Send confirm request to bb-auth */
+    confirmed = bb_auth_ipc_send_confirm_request (
         self->request_cookie,
         self->title ? self->title : "Confirm",
         self->message ? self->message : "Please confirm",
@@ -286,12 +286,12 @@ confirm_request_thread (GTask        *task,
 
 /* Async confirm prompt implementation */
 static void
-noctalia_prompt_confirm_async (GcrPrompt          *prompt,
+bb_auth_prompt_confirm_async (GcrPrompt          *prompt,
                                GCancellable       *cancellable,
                                GAsyncReadyCallback callback,
                                gpointer            user_data)
 {
-    NoctaliaPrompt *self = NOCTALIA_PROMPT (prompt);
+    BbAuthPrompt *self = BB_AUTH_PROMPT (prompt);
     GTask *task;
 
     task = g_task_new (prompt, cancellable, callback, user_data);
@@ -310,7 +310,7 @@ noctalia_prompt_confirm_async (GcrPrompt          *prompt,
 }
 
 static GcrPromptReply
-noctalia_prompt_confirm_finish (GcrPrompt    *prompt,
+bb_auth_prompt_confirm_finish (GcrPrompt    *prompt,
                                 GAsyncResult *result,
                                 GError      **error)
 {
@@ -320,35 +320,35 @@ noctalia_prompt_confirm_finish (GcrPrompt    *prompt,
 }
 
 static void
-noctalia_prompt_close (GcrPrompt *prompt)
+bb_auth_prompt_close (GcrPrompt *prompt)
 {
-    NoctaliaPrompt *self = NOCTALIA_PROMPT (prompt);
+    BbAuthPrompt *self = BB_AUTH_PROMPT (prompt);
 
     g_debug ("Closing prompt, cookie=%s", self->request_cookie ? self->request_cookie : "(null)");
 
     if (self->request_cookie) {
-        noctalia_ipc_send_cancel (self->request_cookie);
+        bb_auth_ipc_send_cancel (self->request_cookie);
     }
 }
 
 static void
-noctalia_prompt_iface_init (GcrPromptInterface *iface)
+bb_auth_prompt_iface_init (GcrPromptInterface *iface)
 {
-    iface->prompt_password_async = noctalia_prompt_password_async;
-    iface->prompt_password_finish = noctalia_prompt_password_finish;
-    iface->prompt_confirm_async = noctalia_prompt_confirm_async;
-    iface->prompt_confirm_finish = noctalia_prompt_confirm_finish;
-    iface->prompt_close = noctalia_prompt_close;
+    iface->prompt_password_async = bb_auth_prompt_password_async;
+    iface->prompt_password_finish = bb_auth_prompt_password_finish;
+    iface->prompt_confirm_async = bb_auth_prompt_confirm_async;
+    iface->prompt_confirm_finish = bb_auth_prompt_confirm_finish;
+    iface->prompt_close = bb_auth_prompt_close;
 }
 
 static void
-noctalia_prompt_class_init (NoctaliaPromptClass *klass)
+bb_auth_prompt_class_init (BbAuthPromptClass *klass)
 {
     GObjectClass *object_class = G_OBJECT_CLASS (klass);
 
-    object_class->set_property = noctalia_prompt_set_property;
-    object_class->get_property = noctalia_prompt_get_property;
-    object_class->finalize = noctalia_prompt_finalize;
+    object_class->set_property = bb_auth_prompt_set_property;
+    object_class->get_property = bb_auth_prompt_get_property;
+    object_class->finalize = bb_auth_prompt_finalize;
 
     /* Install GcrPrompt interface properties */
     g_object_class_override_property (object_class, PROP_TITLE, "title");
@@ -365,7 +365,7 @@ noctalia_prompt_class_init (NoctaliaPromptClass *klass)
 }
 
 static void
-noctalia_prompt_init (NoctaliaPrompt *self)
+bb_auth_prompt_init (BbAuthPrompt *self)
 {
     self->title = NULL;
     self->message = NULL;
@@ -383,8 +383,8 @@ noctalia_prompt_init (NoctaliaPrompt *self)
     self->cookie_counter = 0;
 }
 
-NoctaliaPrompt *
-noctalia_prompt_new (void)
+BbAuthPrompt *
+bb_auth_prompt_new (void)
 {
     return g_object_new (NOCTALIA_TYPE_PROMPT, NULL);
 }

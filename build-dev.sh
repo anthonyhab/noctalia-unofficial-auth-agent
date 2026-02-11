@@ -3,17 +3,17 @@ set -e
 
 BUILD_DIR="build-dev"
 PREFIX="$HOME/.local"
-SERVICE_NAME="noctalia-auth.service"
+SERVICE_NAME="bb-auth.service"
 SERVICE_SOURCE="$PREFIX/lib/systemd/user/$SERVICE_NAME"
 SERVICE_DEST="$HOME/.config/systemd/user/$SERVICE_NAME"
 SERVICE_OVERRIDE_DIR="$HOME/.config/systemd/user/${SERVICE_NAME}.d"
-EXPECTED_PINENTRY="$PREFIX/libexec/pinentry-noctalia"
-RUNTIME_SOCKET="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/noctalia-auth.sock"
+EXPECTED_PINENTRY="$PREFIX/libexec/pinentry-bb"
+RUNTIME_SOCKET="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/bb-auth.sock"
 
 doctor() {
     local ok=1
 
-    echo "== noctalia-auth doctor =="
+    echo "== bb-auth doctor =="
 
     if systemctl --user is-active --quiet "$SERVICE_NAME"; then
         echo "[ok] service active: $SERVICE_NAME"
@@ -31,10 +31,10 @@ doctor() {
         ok=0
     fi
 
-    if [ -x "$PREFIX/libexec/noctalia-auth" ]; then
-        echo "[ok] daemon binary exists: $PREFIX/libexec/noctalia-auth"
+    if [ -x "$PREFIX/libexec/bb-auth" ]; then
+        echo "[ok] daemon binary exists: $PREFIX/libexec/bb-auth"
     else
-        echo "[fail] missing daemon binary: $PREFIX/libexec/noctalia-auth"
+        echo "[fail] missing daemon binary: $PREFIX/libexec/bb-auth"
         ok=0
     fi
 
@@ -45,17 +45,17 @@ doctor() {
         ok=0
     fi
 
-    if [ -x "$PREFIX/libexec/noctalia-auth-bootstrap" ]; then
-        echo "[ok] bootstrap binary exists: $PREFIX/libexec/noctalia-auth-bootstrap"
+    if [ -x "$PREFIX/libexec/bb-auth-bootstrap" ]; then
+        echo "[ok] bootstrap binary exists: $PREFIX/libexec/bb-auth-bootstrap"
     else
-        echo "[fail] missing bootstrap binary: $PREFIX/libexec/noctalia-auth-bootstrap"
+        echo "[fail] missing bootstrap binary: $PREFIX/libexec/bb-auth-bootstrap"
         ok=0
     fi
 
-    if [ -x "$PREFIX/libexec/noctalia-auth-fallback" ]; then
-        echo "[ok] fallback UI binary exists: $PREFIX/libexec/noctalia-auth-fallback"
+    if [ -x "$PREFIX/libexec/bb-auth-fallback" ]; then
+        echo "[ok] fallback UI binary exists: $PREFIX/libexec/bb-auth-fallback"
     else
-        echo "[warn] missing fallback UI binary: $PREFIX/libexec/noctalia-auth-fallback"
+        echo "[warn] missing fallback UI binary: $PREFIX/libexec/bb-auth-fallback"
     fi
 
     if [ -S "$RUNTIME_SOCKET" ]; then
@@ -64,7 +64,7 @@ doctor() {
         echo "[warn] runtime socket missing: $RUNTIME_SOCKET"
     fi
 
-    if [ -n "$fragment" ] && grep -q 'noctalia-auth-bootstrap' "$fragment"; then
+    if [ -n "$fragment" ] && grep -q 'bb-auth-bootstrap' "$fragment"; then
         echo "[ok] service includes bootstrap prestart"
     else
         echo "[fail] service missing bootstrap prestart"
@@ -162,7 +162,7 @@ case "$1" in
     disable)
         systemctl --user disable --now "$SERVICE_NAME"
         rm -f "$SERVICE_DEST"
-        rm -rf "$HOME/.config/systemd/user/noctalia-auth.service.d"
+        rm -rf "$HOME/.config/systemd/user/bb-auth.service.d"
         systemctl --user daemon-reload
         ;;
     status)
@@ -176,17 +176,17 @@ case "$1" in
         ;;
     uninstall)
         rm -f "$SERVICE_DEST"
-        rm -rf "$HOME/.config/systemd/user/noctalia-auth.service.d"
+        rm -rf "$HOME/.config/systemd/user/bb-auth.service.d"
         systemctl --user daemon-reload 2>/dev/null || true
 
-        rm -f "$PREFIX/libexec/noctalia-auth"
-        rm -f "$PREFIX/libexec/noctalia-auth-bootstrap"
-        rm -f "$PREFIX/libexec/noctalia-auth-fallback"
-        rm -f "$PREFIX/libexec/noctalia-keyring-prompter"
-        rm -f "$PREFIX/libexec/pinentry-noctalia"
-        rm -f "$PREFIX/lib/systemd/user/noctalia-auth.service"
+        rm -f "$PREFIX/libexec/bb-auth"
+        rm -f "$PREFIX/libexec/bb-auth-bootstrap"
+        rm -f "$PREFIX/libexec/bb-auth-fallback"
+        rm -f "$PREFIX/libexec/bb-keyring-prompter"
+        rm -f "$PREFIX/libexec/pinentry-bb"
+        rm -f "$PREFIX/lib/systemd/user/bb-auth.service"
         rm -f "$PREFIX/share/dbus-1/services/org.noctalia.polkitagent.service"
-        rm -f "$PREFIX/share/noctalia-auth/org.gnome.keyring.SystemPrompter.service"
+        rm -f "$PREFIX/share/bb-auth/org.gnome.keyring.SystemPrompter.service"
 
         rm -rf "$BUILD_DIR"
         ;;

@@ -162,7 +162,7 @@ void FallbackClient::sendJson(const QJsonObject& json) {
 void FallbackClient::registerProvider() {
     QJsonObject reg{
         {"type", "ui.register"},
-        {"name", "noctalia-auth-fallback"},
+        {"name", "bb-auth-fallback"},
         {"kind", "fallback"},
         {"priority", 10}
     };

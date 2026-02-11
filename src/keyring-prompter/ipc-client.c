@@ -11,7 +11,7 @@ static gchar *
 get_socket_path (void)
 {
     const gchar *runtime_dir = g_get_user_runtime_dir ();
-    return g_build_filename (runtime_dir, "noctalia-auth.sock", NULL);
+    return g_build_filename (runtime_dir, "bb-auth.sock", NULL);
 }
 
 static GSocketConnection *
@@ -80,7 +80,7 @@ send_json_command (const gchar *json_request)
 }
 
 gboolean
-noctalia_ipc_ping (void)
+bb_auth_ipc_ping (void)
 {
     g_autoptr(JsonBuilder) builder = NULL;
     g_autoptr(JsonGenerator) generator = NULL;
@@ -125,7 +125,7 @@ noctalia_ipc_ping (void)
 }
 
 gboolean
-noctalia_ipc_send_keyring_request (const gchar *cookie,
+bb_auth_ipc_send_keyring_request (const gchar *cookie,
                                    const gchar *title,
                                    const gchar *message,
                                    const gchar *description,
@@ -184,7 +184,7 @@ noctalia_ipc_send_keyring_request (const gchar *cookie,
 
     response = send_json_command (json_str);
     if (!response) {
-        g_warning ("Failed to connect to noctalia-auth socket");
+        g_warning ("Failed to connect to bb-auth.socket");
         return FALSE;
     }
 
@@ -228,12 +228,12 @@ noctalia_ipc_send_keyring_request (const gchar *cookie,
         return FALSE;
     }
 
-    g_warning ("Unexpected response from noctalia-auth: %s", response);
+    g_warning ("Unexpected response from bb-auth: %s", response);
     return FALSE;
 }
 
 gboolean
-noctalia_ipc_send_confirm_request (const gchar *cookie,
+bb_auth_ipc_send_confirm_request (const gchar *cookie,
                                    const gchar *title,
                                    const gchar *message,
                                    const gchar *description)
@@ -308,7 +308,7 @@ noctalia_ipc_send_confirm_request (const gchar *cookie,
 }
 
 void
-noctalia_ipc_send_cancel (const gchar *cookie)
+bb_auth_ipc_send_cancel (const gchar *cookie)
 {
     g_autoptr(JsonBuilder) builder = NULL;
     g_autoptr(JsonGenerator) generator = NULL;
