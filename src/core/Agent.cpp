@@ -34,6 +34,7 @@ namespace {
 inline constexpr qint64 PROVIDER_HEARTBEAT_TIMEOUT_MS    = 15000;
 inline constexpr int    PROVIDER_MAINTENANCE_INTERVAL_MS = 5000;
 inline constexpr qint64 FALLBACK_LAUNCH_COOLDOWN_MS      = 5000;
+inline constexpr int    EVENT_QUEUE_MAX_SIZE             = 256;
 
 QJsonObject readBootstrapState() {
     QJsonObject bootstrap;
@@ -436,6 +437,10 @@ void CAgent::emitSessionEvent(const QJsonObject& event) {
         }
     }
 
+    // Cap queue size to prevent unbounded growth during high event churn
+    if (eventQueue.size() >= EVENT_QUEUE_MAX_SIZE) {
+        eventQueue.dequeue(); // Drop oldest event
+    }
     eventQueue.enqueue(event);
     processNextWaiter();
 }
