@@ -281,7 +281,7 @@ QString RequestContextHelper::normalizePrompt(QString s) {
     return s.trimmed();
 }
 
-QJsonObject RequestContextHelper::classifyRequest(const QString& source, const QString& title, const QString& description, const ActorInfo& requestor) {
+QJsonObject RequestContextHelper::classifyRequest(const QString& source, const QString& title, const QString& description) {
     QJsonObject hint;
     QString     kind     = "unknown";
     QString     icon     = "";

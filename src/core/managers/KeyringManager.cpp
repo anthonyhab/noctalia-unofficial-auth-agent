@@ -4,7 +4,7 @@
 #include <QJsonDocument>
 #include <QUuid>
 
-namespace noctalia {
+namespace bb {
 
     KeyringManager::KeyringManager(QObject* parent) : QObject(parent) {}
 
@@ -38,7 +38,7 @@ namespace noctalia {
             actor = RequestContextHelper::resolveRequestorFromSubject(*proc, getuid());
         }
 
-        noctalia::Session::Context ctx;
+        bb::Session::Context ctx;
         ctx.message = request.title;
         ctx.keyringName = request.message; // Detailed message
         ctx.requestor.name = actor.displayName;
@@ -48,7 +48,7 @@ namespace noctalia {
         ctx.requestor.pid = peerPid;
 
         // Use centralized session management
-        g_pAgent->createSession(cookie, noctalia::Session::Source::Keyring, ctx);
+        g_pAgent->createSession(cookie, bb::Session::Source::Keyring, ctx);
         g_pAgent->updateSessionPrompt(cookie, request.message, false);
     }
 
@@ -61,7 +61,7 @@ namespace noctalia {
         m_pendingRequests.erase(it);
 
         // Close session via Agent
-        g_pAgent->closeSession(cookie, noctalia::Session::Result::Success);
+        g_pAgent->closeSession(cookie, bb::Session::Result::Success);
 
         return QJsonObject{{"type", "keyring_response"}, {"id", cookie}, {"result", "ok"}, {"password", response}};
     }
@@ -75,7 +75,7 @@ namespace noctalia {
         m_pendingRequests.erase(it);
 
         // Close session via Agent
-        g_pAgent->closeSession(cookie, noctalia::Session::Result::Cancelled);
+        g_pAgent->closeSession(cookie, bb::Session::Result::Cancelled);
 
         return QJsonObject{{"type", "keyring_response"}, {"result", "cancelled"}, {"id", cookie}};
     }
@@ -96,11 +96,11 @@ namespace noctalia {
                 it = m_pendingRequests.erase(it);
 
                 // Close session via Agent
-                g_pAgent->closeSession(cookie, noctalia::Session::Result::Cancelled);
+                g_pAgent->closeSession(cookie, bb::Session::Result::Cancelled);
             } else {
                 ++it;
             }
         }
     }
 
-} // namespace noctalia
+} // namespace bb

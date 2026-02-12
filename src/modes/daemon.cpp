@@ -7,7 +7,7 @@
 namespace modes {
 
     int runDaemon(QCoreApplication& app, const QString& socketPathOverride) {
-        const QString socketPath = socketPathOverride.isEmpty() ? noctalia::socketPath() : socketPathOverride;
+        const QString socketPath = socketPathOverride.isEmpty() ? bb::socketPath() : socketPathOverride;
 
         std::print("Starting bb-auth daemon\n");
         std::print("Socket path: {}\n", socketPath.toStdString());

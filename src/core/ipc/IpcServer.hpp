@@ -7,7 +7,7 @@
 
 #include <functional>
 
-namespace noctalia {
+namespace bb {
 
     // Callback type for handling parsed JSON messages
     // Parameters: socket, message type, full JSON object
@@ -55,4 +55,4 @@ namespace noctalia {
         QHash<QLocalSocket*, QByteArray> m_buffers;
     };
 
-} // namespace noctalia
+} // namespace bb

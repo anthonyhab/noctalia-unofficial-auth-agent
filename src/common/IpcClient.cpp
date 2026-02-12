@@ -4,7 +4,7 @@
 #include <QJsonDocument>
 #include <QLocalSocket>
 
-namespace noctalia {
+namespace bb {
 
     IpcClient::IpcClient(const QString& socketPath) : m_socketPath(socketPath) {}
 
@@ -48,4 +48,4 @@ namespace noctalia {
         return response && response->value("type").toString() == "pong";
     }
 
-} // namespace noctalia
+} // namespace bb

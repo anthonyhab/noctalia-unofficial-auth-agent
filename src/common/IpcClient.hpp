@@ -5,7 +5,7 @@
 
 #include <optional>
 
-namespace noctalia {
+namespace bb {
 
     // Unified IPC client for communicating with the daemon
     class IpcClient {
@@ -25,4 +25,4 @@ namespace noctalia {
         QString m_socketPath;
     };
 
-} // namespace noctalia
+} // namespace bb

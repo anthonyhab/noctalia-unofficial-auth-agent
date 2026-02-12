@@ -10,7 +10,7 @@
 #include <optional>
 #include <unistd.h>
 
-namespace noctalia {
+namespace bb {
 
 namespace {
 
@@ -343,4 +343,4 @@ void PinentryManager::closeFlow(const QString& cookie, Session::Result result, c
     }
 }
 
-} // namespace noctalia
+} // namespace bb

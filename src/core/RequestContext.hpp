@@ -48,7 +48,7 @@ class RequestContextHelper {
     static DesktopInfo             findDesktopForExe(const QString& exePath);
     static ActorInfo               resolveRequestorFromSubject(const ProcInfo& subject, qint64 agentUid);
     static QString                 normalizePrompt(QString s);
-    static QJsonObject             classifyRequest(const QString& source, const QString& title, const QString& description, const ActorInfo& requestor);
+    static QJsonObject             classifyRequest(const QString& source, const QString& title, const QString& description);
 
   private:
     static void ensureDesktopIndex();

@@ -9,7 +9,7 @@
 #include <polkitqt1-details.h>
 #include <polkitqt1-agent-session.h>
 
-namespace noctalia {
+namespace bb {
     class CAgent;
 }
 
@@ -64,5 +64,5 @@ class CPolkitListener : public PolkitQt1::Agent::Listener {
     void                                             finishAuth(SessionState* state);
     SessionState*                                    findStateForSession(PolkitQt1::Agent::Session* session);
 
-    friend class noctalia::CAgent;
+    friend class bb::CAgent;
 };

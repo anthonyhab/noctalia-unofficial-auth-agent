@@ -11,7 +11,7 @@
 
 #include <utility>
 
-namespace noctalia {
+namespace bb {
 
     class PinentryManager : public QObject {
         Q_OBJECT
@@ -64,4 +64,4 @@ namespace noctalia {
         QSet<QString>                      m_retryReported;
     };
 
-} // namespace noctalia
+} // namespace bb

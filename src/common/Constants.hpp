@@ -3,7 +3,7 @@
 #include <chrono>
 #include <cstddef>
 
-namespace noctalia {
+namespace bb {
 
     // IPC configuration
     inline constexpr std::size_t MAX_MESSAGE_SIZE       = 64 * 1024; // 64 KiB
@@ -18,4 +18,4 @@ namespace noctalia {
     // Authentication
     inline constexpr int MAX_AUTH_RETRIES = 3;
 
-} // namespace noctalia
+} // namespace bb

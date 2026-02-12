@@ -8,7 +8,7 @@
 
 #include <optional>
 
-namespace noctalia {
+namespace bb {
 
     class KeyringManager : public QObject {
         Q_OBJECT
@@ -39,4 +39,4 @@ namespace noctalia {
         QHash<QString, KeyringRequest> m_pendingRequests;
     };
 
-} // namespace noctalia
+} // namespace bb

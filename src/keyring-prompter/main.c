@@ -17,171 +17,134 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-int bb_auth_keyring_main(int argc, char *argv[]);
+int bb_auth_keyring_main(int argc, char* argv[]);
 #ifdef __cplusplus
 }
 #endif
 
-static GcrSystemPrompter *the_prompter = NULL;
-static GMainLoop *main_loop = NULL;
-static guint timeout_id = 0;
-static gboolean registered = FALSE;
+static GcrSystemPrompter* the_prompter = NULL;
+static GMainLoop*         main_loop    = NULL;
+static guint              timeout_id   = 0;
+static gboolean           registered   = FALSE;
 
-static gboolean
-on_timeout (gpointer user_data)
-{
+static gboolean           on_timeout(gpointer user_data G_GNUC_UNUSED) {
     timeout_id = 0;
-    g_debug ("Inactivity timeout reached, quitting");
-    g_main_loop_quit (main_loop);
+    g_debug("Inactivity timeout reached, quitting");
+    g_main_loop_quit(main_loop);
     return G_SOURCE_REMOVE;
 }
 
-static void
-reset_timeout (void)
-{
+static void reset_timeout(void) {
     if (timeout_id != 0) {
-        g_source_remove (timeout_id);
+        g_source_remove(timeout_id);
         timeout_id = 0;
     }
     /* Quit after 30 seconds of inactivity */
-    timeout_id = g_timeout_add_seconds (30, on_timeout, NULL);
+    timeout_id = g_timeout_add_seconds(30, on_timeout, NULL);
 }
 
-static void
-on_prompting_changed (GObject    *obj,
-                      GParamSpec *pspec,
-                      gpointer    user_data)
-{
-    gboolean prompting = gcr_system_prompter_get_prompting (the_prompter);
+static void on_prompting_changed(GObject* obj G_GNUC_UNUSED, GParamSpec* pspec G_GNUC_UNUSED, gpointer user_data G_GNUC_UNUSED) {
+    gboolean prompting = gcr_system_prompter_get_prompting(the_prompter);
 
     if (prompting) {
-        g_debug ("Prompting started, stopping timeout");
+        g_debug("Prompting started, stopping timeout");
         /* Stop timeout while prompting */
         if (timeout_id != 0) {
-            g_source_remove (timeout_id);
+            g_source_remove(timeout_id);
             timeout_id = 0;
         }
     } else {
-        g_debug ("Prompting finished, restarting timeout");
+        g_debug("Prompting finished, restarting timeout");
         /* Restart timeout when done prompting */
-        reset_timeout ();
+        reset_timeout();
     }
 }
 
-static void
-on_bus_acquired (GDBusConnection *connection,
-                 const gchar     *name,
-                 gpointer         user_data)
-{
-    GError *error = NULL;
+static void on_bus_acquired(GDBusConnection* connection G_GNUC_UNUSED, const gchar* name, gpointer user_data G_GNUC_UNUSED) {
+    g_debug("D-Bus session bus acquired, registering prompter");
 
-    g_debug ("D-Bus session bus acquired, registering prompter");
-
-    gcr_system_prompter_register (the_prompter, connection);
+    gcr_system_prompter_register(the_prompter, connection);
     registered = TRUE;
 
-    g_message ("Registered as %s", name);
+    g_message("Registered as %s", name);
 }
 
-static void
-on_name_acquired (GDBusConnection *connection,
-                  const gchar     *name,
-                  gpointer         user_data)
-{
-    g_message ("D-Bus name acquired: %s", name);
+static void on_name_acquired(GDBusConnection* connection G_GNUC_UNUSED, const gchar* name, gpointer user_data G_GNUC_UNUSED) {
+    g_message("D-Bus name acquired: %s", name);
 }
 
-static void
-on_name_lost (GDBusConnection *connection,
-              const gchar     *name,
-              gpointer         user_data)
-{
-    g_warning ("D-Bus name lost: %s", name);
-    g_main_loop_quit (main_loop);
+static void on_name_lost(GDBusConnection* connection G_GNUC_UNUSED, const gchar* name, gpointer user_data G_GNUC_UNUSED) {
+    g_warning("D-Bus name lost: %s", name);
+    g_main_loop_quit(main_loop);
 }
 
-static void
-fallback_to_gcr_prompter (char *argv[])
-{
-    g_message ("Falling back to %s", FALLBACK_GCR_PROMPTER);
+static void fallback_to_gcr_prompter(char* argv[]) {
+    g_message("Falling back to %s", FALLBACK_GCR_PROMPTER);
 
     /* Check if fallback exists */
-    if (access (FALLBACK_GCR_PROMPTER, X_OK) != 0) {
-        g_warning ("Fallback %s not available: %s",
-                   FALLBACK_GCR_PROMPTER, g_strerror (errno));
-        exit (1);
+    if (access(FALLBACK_GCR_PROMPTER, X_OK) != 0) {
+        g_warning("Fallback %s not available: %s", FALLBACK_GCR_PROMPTER, g_strerror(errno));
+        exit(1);
     }
 
     /* Exec the original gcr-prompter, inheriting our argv */
-    execv (FALLBACK_GCR_PROMPTER, argv);
+    execv(FALLBACK_GCR_PROMPTER, argv);
 
     /* If exec returns, it failed */
-    g_warning ("Failed to exec %s: %s", FALLBACK_GCR_PROMPTER, g_strerror (errno));
-    exit (1);
+    g_warning("Failed to exec %s: %s", FALLBACK_GCR_PROMPTER, g_strerror(errno));
+    exit(1);
 }
 
 /* Renamed entry point for unified binary */
-int
-bb_auth_keyring_main (int argc, char *argv[])
-{
+int bb_auth_keyring_main(int argc G_GNUC_UNUSED, char* argv[]) {
     guint owner_id;
 
-    setlocale (LC_ALL, "");
+    setlocale(LC_ALL, "");
 
     /* Enable debug output if requested */
-    if (g_getenv ("BB_AUTH_KEYRING_DEBUG") != NULL) {
-        g_log_set_handler (NULL, G_LOG_LEVEL_DEBUG | G_LOG_LEVEL_INFO |
-                           G_LOG_LEVEL_MESSAGE | G_LOG_LEVEL_WARNING |
-                           G_LOG_LEVEL_CRITICAL | G_LOG_LEVEL_ERROR,
-                           g_log_default_handler, NULL);
+    if (g_getenv("BB_AUTH_KEYRING_DEBUG") != NULL) {
+        g_log_set_handler(NULL, G_LOG_LEVEL_DEBUG | G_LOG_LEVEL_INFO | G_LOG_LEVEL_MESSAGE | G_LOG_LEVEL_WARNING | G_LOG_LEVEL_CRITICAL | G_LOG_LEVEL_ERROR, g_log_default_handler,
+                          NULL);
     }
 
-    g_message ("bb-auth starting in keyring mode");
+    g_message("bb-auth starting in keyring mode");
 
     /* Check if bb-auth daemon socket is available */
-    if (!bb_auth_ipc_ping ()) {
-        g_message ("bb-auth daemon socket not available");
-        fallback_to_gcr_prompter (argv);
+    if (!bb_auth_ipc_ping()) {
+        g_message("bb-auth daemon socket not available");
+        fallback_to_gcr_prompter(argv);
         /* Not reached */
     }
 
-    g_message ("bb-auth daemon socket is available, registering prompter");
+    g_message("bb-auth daemon socket is available, registering prompter");
 
     /* Create system prompter with our custom prompt type */
-    the_prompter = gcr_system_prompter_new (GCR_SYSTEM_PROMPTER_SINGLE,
-                                            BB_AUTH_TYPE_PROMPT);
+    the_prompter = gcr_system_prompter_new(GCR_SYSTEM_PROMPTER_SINGLE, BB_AUTH_TYPE_PROMPT);
 
-    g_signal_connect (the_prompter, "notify::prompting",
-                      G_CALLBACK (on_prompting_changed), NULL);
+    g_signal_connect(the_prompter, "notify::prompting", G_CALLBACK(on_prompting_changed), NULL);
 
-    main_loop = g_main_loop_new (NULL, FALSE);
+    main_loop = g_main_loop_new(NULL, FALSE);
 
     /* Acquire the D-Bus name */
-    owner_id = g_bus_own_name (G_BUS_TYPE_SESSION,
-                               "org.gnome.keyring.SystemPrompter",
-                               G_BUS_NAME_OWNER_FLAGS_REPLACE,
-                               on_bus_acquired,
-                               on_name_acquired,
-                               on_name_lost,
-                               NULL, NULL);
+    owner_id = g_bus_own_name(G_BUS_TYPE_SESSION, "org.gnome.keyring.SystemPrompter", G_BUS_NAME_OWNER_FLAGS_REPLACE, on_bus_acquired, on_name_acquired, on_name_lost, NULL, NULL);
 
-    reset_timeout ();
+    reset_timeout();
 
-    g_main_loop_run (main_loop);
+    g_main_loop_run(main_loop);
 
-    g_message ("Shutting down");
+    g_message("Shutting down");
 
     /* Cleanup */
     if (timeout_id != 0)
-        g_source_remove (timeout_id);
+        g_source_remove(timeout_id);
 
-    g_bus_unown_name (owner_id);
+    g_bus_unown_name(owner_id);
 
     if (registered)
-        gcr_system_prompter_unregister (the_prompter, TRUE);
+        gcr_system_prompter_unregister(the_prompter, TRUE);
 
-    g_object_unref (the_prompter);
-    g_main_loop_unref (main_loop);
+    g_object_unref(the_prompter);
+    g_main_loop_unref(main_loop);
 
     return 0;
 }

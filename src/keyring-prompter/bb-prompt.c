@@ -184,6 +184,8 @@ password_request_thread (GTask        *task,
                          GCancellable *cancellable)
 {
     BbAuthPrompt *self = BB_AUTH_PROMPT (source_object);
+    (void) task_data;
+    (void) cancellable;
     gchar *password = NULL;
     gboolean success;
 
@@ -265,6 +267,8 @@ confirm_request_thread (GTask        *task,
                         GCancellable *cancellable)
 {
     BbAuthPrompt *self = BB_AUTH_PROMPT (source_object);
+    (void) task_data;
+    (void) cancellable;
     gboolean confirmed;
 
     g_message ("Thread: Sending keyring confirm request: cookie=%s",

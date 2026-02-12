@@ -4,7 +4,7 @@
 #include <QLocalSocket>
 #include <QString>
 
-namespace noctalia {
+namespace bb {
 
     // Base information common to all request types
     struct BaseRequest {
@@ -42,4 +42,4 @@ namespace noctalia {
         QJsonObject data;
     };
 
-} // namespace noctalia
+} // namespace bb

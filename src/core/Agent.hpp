@@ -18,7 +18,7 @@
 #include "managers/KeyringManager.hpp"
 #include "managers/PinentryManager.hpp"
 
-namespace noctalia {
+namespace bb {
 
     class CAgent : public QObject {
         Q_OBJECT
@@ -58,9 +58,8 @@ namespace noctalia {
         void onPolkitCompleted(bool gainedAuthorization);
 
       public:
-        void onPolkitRequest(const QString& cookie, const QString& message,
-                             const QString& iconName, const QString& actionId,
-                             const QString& user, const PolkitQt1::Details& details);
+        void onPolkitRequest(const QString& cookie, const QString& message, const QString& iconName, const QString& actionId, const QString& user,
+                             const PolkitQt1::Details& details);
         void onSessionRequest(const QString& cookie, const QString& prompt, bool echo);
         void onSessionComplete(const QString& cookie, bool success);
         void onSessionRetry(const QString& cookie, const QString& error);
@@ -74,12 +73,12 @@ namespace noctalia {
         void updateSessionPinentryRetry(const QString& id, int curRetry, int maxRetries);
         // Returns closed event if deferred=true, otherwise emits immediately and returns empty object
         QJsonObject closeSession(const QString& id, Session::Result result, bool deferred = false);
-        Session* getSession(const QString& id);
+        Session*    getSession(const QString& id);
 
       private:
-        noctalia::IpcServer             m_ipcServer;
-        noctalia::KeyringManager        m_keyringManager;
-        noctalia::PinentryManager       m_pinentryManager;
+        bb::IpcServer                   m_ipcServer;
+        bb::KeyringManager              m_keyringManager;
+        bb::PinentryManager             m_pinentryManager;
 
         QSharedPointer<CPolkitListener> m_listener;
 
@@ -90,7 +89,7 @@ namespace noctalia {
         QList<QLocalSocket*> nextWaiters;
 
         // Active sessions
-        std::unordered_map<QString, std::unique_ptr<noctalia::Session>> m_sessions;
+        std::unordered_map<QString, std::unique_ptr<bb::Session>> m_sessions;
 
         // Active subscribers
         QList<QLocalSocket*> m_subscribers;
@@ -99,7 +98,7 @@ namespace noctalia {
             QString id;
             QString name;
             QString kind;
-            int     priority = 0;
+            int     priority        = 0;
             qint64  lastHeartbeatMs = 0;
         };
 
@@ -109,10 +108,10 @@ namespace noctalia {
         QString                          m_socketPath;
         qint64                           m_lastFallbackLaunchMs = 0;
 
-        void processNextWaiter();
+        void                             processNextWaiter();
     };
 
-} // namespace noctalia
+} // namespace bb
 
-using CAgent = noctalia::CAgent;
+using CAgent = bb::CAgent;
 extern std::unique_ptr<CAgent> g_pAgent;

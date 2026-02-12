@@ -1,6 +1,6 @@
 #include "Session.hpp"
 
-namespace noctalia {
+namespace bb {
 
 Session::Session(const QString& id, Source source, Context context)
     : m_id(id)
@@ -159,4 +159,4 @@ QJsonObject Session::toClosedEvent() const {
     return event;
 }
 
-} // namespace noctalia
+} // namespace bb

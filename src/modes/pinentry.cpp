@@ -72,7 +72,7 @@ namespace {
 
         int run() {
             // Send initial greeting
-            sendOk("Noctalia Auth Pinentry");
+            sendOk("BB Auth Pinentry");
 
             std::string line;
             while (std::getline(std::cin, line)) {
@@ -97,7 +97,7 @@ namespace {
         QString       flowCookie;
         bool          awaitingTerminalResult = false;
 
-        QString ensureFlowCookie() {
+        QString       ensureFlowCookie() {
             if (flowCookie.isEmpty()) {
                 flowCookie = QUuid::createUuid().toString(QUuid::WithoutBraces);
             }
@@ -137,16 +137,16 @@ namespace {
                 return;
             }
 
-            noctalia::IpcClient client(noctalia::socketPath());
-            QJsonObject         request;
-            request["type"] = "pinentry_result";
-            request["id"] = flowCookie;
+            bb::IpcClient client(bb::socketPath());
+            QJsonObject   request;
+            request["type"]   = "pinentry_result";
+            request["id"]     = flowCookie;
             request["result"] = result;
             if (!error.isEmpty()) {
                 request["error"] = error;
             }
 
-            auto response = client.sendRequest(request, noctalia::IPC_READ_TIMEOUT_MS);
+            auto response = client.sendRequest(request, bb::IPC_READ_TIMEOUT_MS);
             if (!response || (*response)["type"].toString() == "error") {
                 std::print(stderr, "pinentry: failed to report terminal result for cookie {}\n", flowCookie.toStdString());
             }
@@ -158,7 +158,7 @@ namespace {
             }
         }
 
-        void          sendOk(const QString& comment = {}) {
+        void sendOk(const QString& comment = {}) {
             if (comment.isEmpty())
                 std::cout << "OK\n";
             else
@@ -178,9 +178,9 @@ namespace {
 
         bool handleCommand(const QString& line) {
             // Split command and argument
-            int     spaceIdx = line.indexOf(' ');
-            QString cmd      = (spaceIdx > 0) ? line.left(spaceIdx).toUpper() : line.toUpper();
-            QString arg      = (spaceIdx > 0) ? assuanDecode(line.mid(spaceIdx + 1)) : QString();
+            qsizetype spaceIdx = line.indexOf(' ');
+            QString   cmd      = (spaceIdx > 0) ? line.left(spaceIdx).toUpper() : line.toUpper();
+            QString   arg      = (spaceIdx > 0) ? assuanDecode(line.mid(static_cast<int>(spaceIdx + 1))) : QString();
 
             if (cmd == "BYE") {
                 if (awaitingTerminalResult) {
@@ -270,7 +270,7 @@ namespace {
                     sendData("1.0.0");
                     sendOk();
                 } else if (arg == "flavor") {
-                    sendData("noctalia");
+                    sendData("bb");
                     sendOk();
                 } else if (arg == "ttyinfo") {
                     sendData("");
@@ -354,18 +354,18 @@ namespace {
         }
 
         bool requestPasswordFromDaemon(QString& password) {
-            noctalia::IpcClient client(noctalia::socketPath());
+            bb::IpcClient client(bb::socketPath());
 
             const QString cookie = ensureFlowCookie();
 
             // Build request JSON
             QJsonObject request;
-            request["type"]         = "pinentry_request";
-            request["cookie"]       = cookie;
-            request["title"]        = state.title.isEmpty() ? "GPG Key" : state.title;
-            request["prompt"]       = state.prompt.isEmpty() ? "Enter passphrase:" : state.prompt;
-            request["description"]  = state.description;
-            request["repeat"]       = !state.repeat.isEmpty();
+            request["type"]        = "pinentry_request";
+            request["cookie"]      = cookie;
+            request["title"]       = state.title.isEmpty() ? "GPG Key" : state.title;
+            request["prompt"]      = state.prompt.isEmpty() ? "Enter passphrase:" : state.prompt;
+            request["description"] = state.description;
+            request["repeat"]      = !state.repeat.isEmpty();
 
             if (!state.error.isEmpty()) {
                 request["error"] = state.error;
@@ -374,7 +374,7 @@ namespace {
             if (!state.keyinfo.isEmpty())
                 request["keyinfo"] = state.keyinfo;
 
-            auto response = client.sendRequest(request, noctalia::PINENTRY_REQUEST_TIMEOUT_MS);
+            auto response = client.sendRequest(request, bb::PINENTRY_REQUEST_TIMEOUT_MS);
 
             if (!response) {
                 std::print(stderr, "pinentry: failed to communicate with daemon\n");
@@ -387,7 +387,7 @@ namespace {
             if (type == "pinentry_response") {
                 QString result = (*response)["result"].toString();
                 if (result == "ok") {
-                    password = (*response)["password"].toString();
+                    password               = (*response)["password"].toString();
                     awaitingTerminalResult = true;
                     return true;
                 }
@@ -407,18 +407,18 @@ namespace {
         }
 
         bool requestConfirmFromDaemon() {
-            noctalia::IpcClient client(noctalia::socketPath());
+            bb::IpcClient client(bb::socketPath());
 
-            const QString       cookie = ensureFlowCookie();
+            const QString cookie = ensureFlowCookie();
 
-            QJsonObject         request;
+            QJsonObject   request;
             request["type"]         = "pinentry_request";
             request["cookie"]       = cookie;
             request["title"]        = state.title.isEmpty() ? "Confirm" : state.title;
             request["prompt"]       = state.description.isEmpty() ? "Please confirm" : state.description;
             request["confirm_only"] = true;
 
-            auto response = client.sendRequest(request, noctalia::PINENTRY_REQUEST_TIMEOUT_MS);
+            auto response = client.sendRequest(request, bb::PINENTRY_REQUEST_TIMEOUT_MS);
 
             if (!response) {
                 resetFlow();

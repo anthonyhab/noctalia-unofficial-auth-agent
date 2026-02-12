@@ -5,7 +5,7 @@
 #include <QString>
 #include <optional>
 
-namespace noctalia {
+namespace bb {
 
 class Session {
 public:
@@ -78,4 +78,4 @@ private:
     [[nodiscard]] QJsonObject contextToJson() const;
 };
 
-} // namespace noctalia
+} // namespace bb

@@ -2,11 +2,11 @@
 
 #include <QStandardPaths>
 
-namespace noctalia {
+namespace bb {
 
     QString socketPath() {
         const auto runtimeDir = QStandardPaths::writableLocation(QStandardPaths::RuntimeLocation);
         return runtimeDir + QStringLiteral("/bb-auth.sock");
     }
 
-} // namespace noctalia
+} // namespace bb
