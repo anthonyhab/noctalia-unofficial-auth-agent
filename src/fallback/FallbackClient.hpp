@@ -6,7 +6,7 @@
 #include <QObject>
 #include <QTimer>
 
-namespace noctalia {
+namespace bb {
 
 class FallbackClient : public QObject {
     Q_OBJECT
@@ -58,4 +58,4 @@ class FallbackClient : public QObject {
     QString      m_pendingProviderId;
 };
 
-} // namespace noctalia
+} // namespace bb

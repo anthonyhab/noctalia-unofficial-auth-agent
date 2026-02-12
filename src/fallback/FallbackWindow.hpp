@@ -9,7 +9,7 @@ class QLineEdit;
 class QPushButton;
 class QTimer;
 
-namespace noctalia {
+namespace bb {
 
 class FallbackWindow : public QWidget {
     Q_OBJECT
@@ -83,4 +83,4 @@ class FallbackWindow : public QWidget {
     void stopIdleExitTimer();
 };
 
-} // namespace noctalia
+} // namespace bb
