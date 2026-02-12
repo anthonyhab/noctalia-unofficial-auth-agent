@@ -143,11 +143,11 @@ cleanup_stale_service_overrides() {
 
 case "$1" in
     build)
-        cmake -S . -B "$BUILD_DIR" -DCMAKE_BUILD_TYPE=Debug -DCMAKE_INSTALL_PREFIX="$PREFIX"
+        cmake -S . -B "$BUILD_DIR" -DCMAKE_BUILD_TYPE="${BB_AUTH_BUILD_TYPE:-RelWithDebInfo}" -DCMAKE_INSTALL_PREFIX="$PREFIX"
         cmake --build "$BUILD_DIR"
         ;;
     install)
-        cmake -S . -B "$BUILD_DIR" -DCMAKE_BUILD_TYPE=Debug -DCMAKE_INSTALL_PREFIX="$PREFIX"
+        cmake -S . -B "$BUILD_DIR" -DCMAKE_BUILD_TYPE="${BB_AUTH_BUILD_TYPE:-RelWithDebInfo}" -DCMAKE_INSTALL_PREFIX="$PREFIX"
         cmake --build "$BUILD_DIR"
         DESTDIR="" cmake --install "$BUILD_DIR"
         install_user_service_override
@@ -202,6 +202,9 @@ case "$1" in
         echo "  doctor     - Validate runtime wiring and gpg pinentry path"
         echo "  fix-gpg    - Configure gpg-agent to use $EXPECTED_PINENTRY"
         echo "  uninstall  - Remove dev build and installation"
+        echo ""
+        echo "Environment:"
+        echo "  BB_AUTH_BUILD_TYPE - CMake build type (default: RelWithDebInfo, use Debug for dev)"
         exit 1
         ;;
 esac
