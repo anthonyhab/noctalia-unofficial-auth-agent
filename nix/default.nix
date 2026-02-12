@@ -44,7 +44,7 @@ in
 
     meta = {
       description = "Unified polkit, keyring, and pinentry authentication daemon";
-      homepage = "https://github.com/anthonyhab/noctalia-polkit";
+      homepage = "https://github.com/anthonyhab/bb-auth";
       license = lib.licenses.bsd3;
       maintainers = [lib.maintainers.fufexan];
       mainProgram = "bb-auth";

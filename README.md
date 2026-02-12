@@ -75,15 +75,27 @@ If no shell UI provider is active when an auth request arrives, daemon launches 
 The fallback app enforces a single-instance lock and stands down when a higher-priority shell provider becomes active.
 
 For tiling compositors, the fallback app uses a normal top-level window so it can still be tiled manually by the compositor.
-On Hyprland, add a class-based rule if you want default floating + centering on open:
-
+**Hyprland** (0.53+):
 ```ini
-windowrule {
-  float = on
-  center = on
-  size = 560 360
-  match:class = bb-auth-fallback
+windowrule = float, class:^(bb-auth-fallback)$
+windowrule = center, class:^(bb-auth-fallback)$
+windowrule = size 560 360, class:^(bb-auth-fallback)$
+```
+
+**Niri**:
+```kdl
+window-rule {
+    match app-id="bb-auth-fallback"
+    default-column-width { fixed 560; }
+    default-window-height { fixed 360; }
+    open-floating true
+    center-on-cursor true
 }
+```
+
+**Sway / i3**:
+```
+for_window [app_id="bb-auth-fallback"] floating enable, resize set 560 360, move position center
 ```
 
 ## Development workflow
@@ -151,7 +163,6 @@ Previously known as `noctalia-auth` (daemon) and `polkit-auth` (plugin).
 Renamed to BB Auth as part of the "habibe → bibe → BB" branding.  
 
 ### Upgrading from noctalia-auth
-
 If you were using the previous version, run the migration script after installing:
 
 ```bash
@@ -165,11 +176,15 @@ This will:
 - Clean up legacy runtime files and state
 - Back up your old state directory
 - Report any legacy binaries that need manual removal
+- **Enable and start `bb-auth.service` automatically** (if bb-auth is installed)
 
-Then enable the new service:
+If bb-auth is not installed, the script will tell you exactly how to install it
+for your platform (AUR, Nix, or source build).
+
+To perform cleanup without enabling the service:
 
 ```bash
-systemctl --user enable --now bb-auth.service
+bb-auth-migrate --no-enable
 ```
 
 The plugin ID has changed from `polkit-auth` to `bb-auth`. Reinstall through your shell's plugin UI.

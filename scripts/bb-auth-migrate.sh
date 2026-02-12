@@ -4,10 +4,31 @@
 # This script will be removed in a future release
 
 set -euo pipefail
-
 SCRIPT_NAME="bb-auth-migrate"
 LEGACY_SERVICE="noctalia-auth.service"
 NEW_SERVICE="bb-auth.service"
+
+# Parse arguments
+REMOVE_BINARIES=false
+NO_ENABLE=false
+
+for arg in "$@"; do
+    case "$arg" in
+        --remove-binaries) REMOVE_BINARIES=true ;;
+        --no-enable) NO_ENABLE=true ;;
+        --help)
+            echo "Usage: $SCRIPT_NAME [--remove-binaries] [--no-enable]"
+            echo "  --remove-binaries  Automatically remove legacy binaries"
+            echo "  --no-enable        Skip enabling/starting bb-auth.service"
+            exit 0
+            ;;
+        *)
+            echo "Unknown option: $arg" >&2
+            echo "Usage: $SCRIPT_NAME [--remove-binaries] [--no-enable]" >&2
+            exit 1
+            ;;
+    esac
+done
 
 log() {
     printf '[%s] %s\n' "$SCRIPT_NAME" "$*"
@@ -102,7 +123,7 @@ if [ -d "$AUTOSTART_DIR" ]; then
 fi
 
 # Handle --remove-binaries flag
-if [ "${1:-}" = "--remove-binaries" ] && [ ${#FOUND_LEGACY[@]} -gt 0 ]; then
+if [ "$REMOVE_BINARIES" = true ] && [ ${#FOUND_LEGACY[@]} -gt 0 ]; then
     log "Removing legacy binaries..."
     for binary in "${FOUND_LEGACY[@]}"; do
         rm -f "$binary"
@@ -112,28 +133,94 @@ fi
 
 # 8. Reload systemd daemon
 log "Reloading systemd daemon..."
-systemctl --user daemon-reload
+if ! systemctl --user daemon-reload 2>/dev/null; then
+    log "WARNING: Failed to reload systemd daemon. User manager may not be running."
+    log "         You may need to log out and back in, then run:"
+    log "         systemctl --user daemon-reload"
+fi
 
-log ""
-log "=========================================="
-log "Migration complete!"
-log "=========================================="
-log ""
+# 9. Enable and start new service (if installed and not disabled)
+BB_AUTH_INSTALLED=false
+if systemctl --user cat "$NEW_SERVICE" &>/dev/null; then
+    BB_AUTH_INSTALLED=true
+fi
+
+if [ "$BB_AUTH_INSTALLED" = false ]; then
+    log ""
+    log "=========================================="
+    log "bb-auth is NOT installed"
+    log "=========================================="
+    log ""
+    log "The migration script cleaned up legacy files, but bb-auth"
+    log "itself is not installed (service unit not found)."
+    log ""
+    log "Install bb-auth via one of:"
+    log ""
+    log "  AUR (Arch):"
+    log "    yay -S bb-auth-git"
+    log ""
+    log "  Nix:"
+    log "    nix profile install .#bb-auth"
+    log ""
+    log "  Source build:"
+    log "    cmake -S . -B build -DCMAKE_INSTALL_PREFIX=/usr"
+    log "    cmake --build build"
+    log "    sudo cmake --install build"
+    log ""
+    log "After installing, either re-run this script or enable manually:"
+    log "    systemctl --user enable --now bb-auth.service"
+    log ""
+    exit 0
+fi
+
+# bb-auth is installed
+if [ "$NO_ENABLE" = true ]; then
+    log ""
+    log "=========================================="
+    log "Migration complete!"
+    log "=========================================="
+    log ""
+    log "bb-auth is installed (--no-enable specified, service not started)"
+    log ""
+    log "To enable/start manually:"
+    log "    systemctl --user enable --now bb-auth.service"
+    log ""
+else
+    log "Enabling and starting bb-auth.service..."
+    if systemctl --user is-enabled "$NEW_SERVICE" &>/dev/null; then
+        # Already enabled, just restart
+        if ! systemctl --user restart "$NEW_SERVICE" 2>/dev/null; then
+            log "WARNING: Failed to restart bb-auth.service"
+            log "         Check status with: systemctl --user status bb-auth.service"
+        fi
+    else
+        # Not enabled, enable and start
+        if ! systemctl --user enable --now "$NEW_SERVICE" 2>/dev/null; then
+            log "WARNING: Failed to enable/start bb-auth.service"
+            log "         Check status with: systemctl --user status bb-auth.service"
+        fi
+    fi
+
+    # Verify service status
+    sleep 0.5
+    if systemctl --user is-active "$NEW_SERVICE" &>/dev/null; then
+        log "bb-auth.service is active"
+    else
+        log "WARNING: bb-auth.service is not active"
+        log "         Check: systemctl --user status bb-auth.service"
+    fi
+
+    log ""
+    log "=========================================="
+    log "Migration complete!"
+    log "=========================================="
+    log ""
+fi
 log "Next steps:"
-log "1. Install bb-auth (if not already installed):"
-log "   cmake --build build --target install"
+log "  - Update your shell plugin: remove 'polkit-auth', install 'bb-auth'"
+log "  - Test: pkexec true"
 log ""
-log "2. Enable the new service:"
-log "   systemctl --user enable --now $NEW_SERVICE"
-log ""
-log "3. Update your Noctalia plugin:"
-log "   - Remove the old 'polkit-auth' plugin"
-log "   - Install the new 'bb-auth' plugin"
-log ""
-log "4. Test the setup:"
-log "   pkexec true"
-log ""
-
 if [ -d "$LEGACY_STATE_DIR" ] 2>/dev/null; then
     log "Note: Legacy state backed up to: $BACKUP_DIR"
+    log ""
 fi
