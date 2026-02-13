@@ -1,19 +1,18 @@
 #pragma once
 
 #include <QCoreApplication>
-#include <QDateTime>
-#include <QHash>
-#include <QLocalServer>
-#include <QPointer>
-#include <QQueue>
-#include <QRegularExpression>
-#include <QTimer>
 #include <QSharedPointer>
-#include <memory>
-#include <unordered_map>
+#include <QTimer>
 
-#include "Session.hpp"
+#include <memory>
+
 #include "PolkitListener.hpp"
+#include "Session.hpp"
+#include "agent/EventQueue.hpp"
+#include "agent/EventRouter.hpp"
+#include "agent/ProviderRegistry.hpp"
+#include "agent/SessionStore.hpp"
+#include "agent/MessageRouter.hpp"
 #include "ipc/IpcServer.hpp"
 #include "managers/KeyringManager.hpp"
 #include "managers/PinentryManager.hpp"
@@ -27,13 +26,11 @@ namespace bb {
         explicit CAgent(QObject* parent = nullptr);
         ~CAgent() override;
 
-        // Returns true on success
         bool start(QCoreApplication& app, const QString& socketPath);
 
       private:
         void onClientDisconnected(QLocalSocket* socket);
 
-        // Message handlers
         void handleMessage(QLocalSocket* socket, const QString& type, const QJsonObject& msg);
         void handleNext(QLocalSocket* socket);
         void handleSubscribe(QLocalSocket* socket);
@@ -46,33 +43,28 @@ namespace bb {
         void handleRespond(QLocalSocket* socket, const QJsonObject& msg);
         void handleCancel(QLocalSocket* socket, const QJsonObject& msg);
 
-        bool isSessionEventForProviderRouting(const QJsonObject& event) const;
         bool isAuthorizedProviderSocket(QLocalSocket* socket) const;
         bool hasActiveProvider() const;
-        bool recomputeActiveProvider(bool emitStatusChange = true);
         void pruneStaleProviders();
         void emitProviderStatus();
         void ensureFallbackUiRunning(const QString& reason);
 
-        // Polkit event handlers (called directly by PolkitListener)
         void onPolkitCompleted(bool gainedAuthorization);
 
       public:
-        void onPolkitRequest(const QString& cookie, const QString& message, const QString& iconName, const QString& actionId, const QString& user,
-                             const PolkitQt1::Details& details);
-        void onSessionRequest(const QString& cookie, const QString& prompt, bool echo);
-        void onSessionComplete(const QString& cookie, bool success);
-        void onSessionRetry(const QString& cookie, const QString& error);
-        void onSessionInfo(const QString& cookie, const QString& info);
+        void        onPolkitRequest(const QString& cookie, const QString& message, const QString& iconName, const QString& actionId, const QString& user,
+                                    const PolkitQt1::Details& details);
+        void        onSessionRequest(const QString& cookie, const QString& prompt, bool echo);
+        void        onSessionComplete(const QString& cookie, bool success);
+        void        onSessionRetry(const QString& cookie, const QString& error);
+        void        onSessionInfo(const QString& cookie, const QString& info);
 
-        void emitSessionEvent(const QJsonObject& event);
+        void        emitSessionEvent(const QJsonObject& event);
 
-        // Centralized session management - used by all managers
-        void createSession(const QString& id, Session::Source source, Session::Context ctx);
-        void updateSessionPrompt(const QString& id, const QString& prompt, bool echo = false, bool clearError = true);
-        void updateSessionError(const QString& id, const QString& error);
-        void updateSessionPinentryRetry(const QString& id, int curRetry, int maxRetries);
-        // Returns closed event if deferred=true, otherwise emits immediately and returns empty object
+        void        createSession(const QString& id, Session::Source source, Session::Context ctx);
+        void        updateSessionPrompt(const QString& id, const QString& prompt, bool echo = false, bool clearError = true);
+        void        updateSessionError(const QString& id, const QString& error);
+        void        updateSessionPinentryRetry(const QString& id, int curRetry, int maxRetries);
         QJsonObject closeSession(const QString& id, Session::Result result, bool deferred = false);
         Session*    getSession(const QString& id);
 
@@ -82,34 +74,15 @@ namespace bb {
         bb::PinentryManager             m_pinentryManager;
 
         QSharedPointer<CPolkitListener> m_listener;
-
-        // Queue of pending events for UI
-        QQueue<QJsonObject> eventQueue;
-
-        // Waiters for "next" event
-        QList<QLocalSocket*> nextWaiters;
-
-        // Active sessions
-        std::unordered_map<QString, std::unique_ptr<bb::Session>> m_sessions;
-
-        // Active subscribers
-        QList<QLocalSocket*> m_subscribers;
-
-        struct UIProvider {
-            QString id;
-            QString name;
-            QString kind;
-            int     priority        = 0;
-            qint64  lastHeartbeatMs = 0;
-        };
-
-        QHash<QLocalSocket*, UIProvider> m_uiProviders;
-        QPointer<QLocalSocket>           m_activeProvider;
-        QTimer                           m_providerMaintenanceTimer;
-        QString                          m_socketPath;
-        qint64                           m_lastFallbackLaunchMs = 0;
-
-        void                             processNextWaiter();
+        bb::agent::ProviderRegistry     m_providerRegistry;
+        bb::agent::EventQueue           m_eventQueue;
+        bb::agent::EventRouter          m_eventRouter;
+        bb::agent::SessionStore         m_sessionStore;
+        bb::agent::MessageRouter        m_messageRouter;
+        QList<QLocalSocket*>            m_subscribers;
+        QTimer                          m_providerMaintenanceTimer;
+        QString                         m_socketPath;
+        qint64                          m_lastFallbackLaunchMs = 0;
     };
 
 } // namespace bb

@@ -4,6 +4,8 @@
 #include <QApplication>
 
 int runFallbackWindowTouchModelTests(int argc, char** argv);
+int runAgentRoutingTests(int argc, char** argv);
+
 class SessionInfoTest : public QObject {
     Q_OBJECT
 
@@ -63,8 +65,15 @@ int main(int argc, char** argv) {
     QApplication    app(argc, argv);
     SessionInfoTest sessionInfoTest;
     const int       sessionResult  = QTest::qExec(&sessionInfoTest, argc, argv);
+    const int       routingResult  = runAgentRoutingTests(argc, argv);
     const int       fallbackResult = runFallbackWindowTouchModelTests(argc, argv);
-    return sessionResult != 0 ? sessionResult : fallbackResult;
+    if (sessionResult != 0) {
+        return sessionResult;
+    }
+    if (routingResult != 0) {
+        return routingResult;
+    }
+    return fallbackResult;
 }
 
 #include "test_session_info.moc"

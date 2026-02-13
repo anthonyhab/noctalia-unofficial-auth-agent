@@ -58,6 +58,16 @@ qt_add_executable(bb-auth
     src/core/Session.cpp
     src/core/Agent.cpp
     src/core/Agent.hpp
+    src/core/agent/EventQueue.cpp
+    src/core/agent/EventQueue.hpp
+    src/core/agent/ProviderRegistry.cpp
+    src/core/agent/ProviderRegistry.hpp
+    src/core/agent/EventRouter.cpp
+    src/core/agent/EventRouter.hpp
+    src/core/agent/SessionStore.cpp
+    src/core/agent/SessionStore.hpp
+    src/core/agent/MessageRouter.cpp
+    src/core/agent/MessageRouter.hpp
     src/core/PolkitListener.hpp
     src/core/PolkitListener.cpp
     src/core/RequestContext.hpp
@@ -118,6 +128,15 @@ qt_add_executable(bb-auth-fallback
     src/fallback/FallbackClient.hpp
     src/fallback/FallbackWindow.cpp
     src/fallback/FallbackWindow.hpp
+    src/fallback/prompt/TextNormalize.cpp
+    src/fallback/prompt/TextNormalize.hpp
+    src/fallback/prompt/PromptHeuristics.cpp
+    src/fallback/prompt/PromptHeuristics.hpp
+    src/fallback/prompt/PromptExtractors.cpp
+    src/fallback/prompt/PromptExtractors.hpp
+    src/fallback/prompt/PromptModel.hpp
+    src/fallback/prompt/PromptModelBuilder.cpp
+    src/fallback/prompt/PromptModelBuilder.hpp
 )
 
 target_link_libraries(bb-auth-fallback
@@ -132,12 +151,26 @@ install(TARGETS bb-auth-fallback
 qt_add_executable(bb-auth-tests
     tests/test_session_info.cpp
     tests/test_fallback_touch_model.cpp
+    tests/test_agent_routing.cpp
+
     src/core/Session.cpp
     src/core/Session.hpp
-    src/fallback/FallbackWindow.cpp
-    src/fallback/FallbackWindow.hpp
-    src/fallback/FallbackClient.cpp
-    src/fallback/FallbackClient.hpp
+    src/core/agent/EventQueue.cpp
+    src/core/agent/EventQueue.hpp
+    src/core/agent/ProviderRegistry.cpp
+    src/core/agent/ProviderRegistry.hpp
+    src/core/agent/EventRouter.cpp
+    src/core/agent/EventRouter.hpp
+
+    src/fallback/prompt/TextNormalize.cpp
+    src/fallback/prompt/TextNormalize.hpp
+    src/fallback/prompt/PromptHeuristics.cpp
+    src/fallback/prompt/PromptHeuristics.hpp
+    src/fallback/prompt/PromptExtractors.cpp
+    src/fallback/prompt/PromptExtractors.hpp
+    src/fallback/prompt/PromptModel.hpp
+    src/fallback/prompt/PromptModelBuilder.cpp
+    src/fallback/prompt/PromptModelBuilder.hpp
 )
 
 target_link_libraries(bb-auth-tests
